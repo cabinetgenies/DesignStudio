@@ -22,7 +22,7 @@ export default function V2DesignPanel({
   onHighlight: (zone: V2MaterialZone | null) => void;
   highlightZone: V2MaterialZone | null;
   onView: (view: V2View) => void;
-  zoneCounts?: Partial<Record<V2MaterialZone, { meshes: number }>>;
+  zoneCounts?: Partial<Record<V2MaterialZone, number>>;
 }) {
   const [tab, setTab] = useState<Tab>("materials");
   const [openZone, setOpenZone] = useState<V2MaterialZone | null>("perimeter");
@@ -58,7 +58,7 @@ export default function V2DesignPanel({
                 const materials = V2_MATERIALS[zone];
                 const selectedId = selections[zone];
                 const open = openZone === zone;
-                const meshCount = zoneCounts?.[zone]?.meshes;
+                const meshCount = zoneCounts?.[zone];
                 const notAssigned = meshCount !== undefined && meshCount === 0;
                 return (
                   <div key={zone} className="border-b border-zinc-100">

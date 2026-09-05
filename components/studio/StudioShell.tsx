@@ -175,8 +175,18 @@ import {
   type PdfDocument,
 } from "@/lib/studio/pdf";
 import { useStudioPresentation } from "@/lib/studio/presentation-context";
-import { useGlbModel } from "@/lib/studio/use-gltf-model";
-import type { CameraCommand, StudioSettings } from "@/lib/studio/types";
+import { useImportedModel } from "@/lib/studio/use-imported-model";
+import {
+  classifyDaeName,
+  describeEncryptedXml,
+  EMPTY_DAE_IMPORT,
+  isDaeReady,
+  parseCutListCsv,
+  parseDaeUnit,
+  type DaeImportState,
+  type CutListRow,
+} from "@/lib/studio/dae";
+import type { CameraCommand, SceneNodeInfo, StudioSettings } from "@/lib/studio/types";
 import GeneratedRoomReview from "./GeneratedRoomReview";
 import PresentationMaterials from "./PresentationMaterials";
 import PlanWorkspace from "./PlanWorkspace";
@@ -228,6 +238,8 @@ export default function StudioShell({ projectName }: StudioShellProps) {
   const { presenting, setPresenting } = useStudioPresentation();
   const [settings, setSettings] = useState<StudioSettings>(defaultSettings);
   const [descriptor, setDescriptor] = useState<ModelDescriptor | null>(null);
+  const [dae, setDae] = useState<DaeImportState>(EMPTY_DAE_IMPORT);
+  const [cutList, setCutList] = useState<CutListRow[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [planAnalysis, setPlanAnalysis] = useState<PlanAnalysis | null>(null);
   const [analysisSearch, setAnalysisSearch] = useState("");
@@ -461,7 +473,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     editableObjects: importedObjects,
     loading,
     error: loadError,
-  } = useGlbModel(descriptor?.url ?? null);
+  } = useImportedModel(descriptor?.url ?? null);
 
   const modelInfo = model?.info ?? null;
   const tree = useMemo(() => model?.tree ?? [], [model]);
@@ -2260,9 +2272,9 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     setPendingAssistedCalibration(null);
     setPlan((current) => ({ ...current, alignMode: false }));
     setExperienceMode("simple");
-    if (room.walls.length > 0) {
+    if (isDaeReady(dae) && descriptor) {
       setSimpleStage("design");
-    } else if (plan.fileName) {
+    } else if (dae.fileName) {
       setSimpleStage("review");
     } else {
       setSimpleStage("upload");
@@ -3261,6 +3273,165 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     commandRef.current = { view: "home", ...demoCameraPresets.home };
   }
 
+  function resetImportedModelState() {
+    setSelectedKeys([]);
+    setAssignments({});
+    setTransforms({});
+    setExtraObjects([]);
+    setRoom(createRoomLayout());
+    setSelectedWallId(null);
+    setSelectedOpeningId(null);
+    setImportAlignment(DEFAULT_IMPORT_ALIGNMENT);
+    setPast([]);
+    setFuture([]);
+    setTransformMode(null);
+    setValidationError(null);
+  }
+
+  function loadDaeModel(url: string, fileName: string, fileSize: number) {
+    if (descriptor?.url && descriptor.url.startsWith("blob:")) {
+      URL.revokeObjectURL(descriptor.url);
+    }
+    resetImportedModelState();
+    setDescriptor({ url, fileName, fileSize });
+    setDae((current) => ({
+      ...current,
+      status: "loading",
+      source: "imported-from-dae",
+      objectUrl: url,
+    }));
+  }
+
+  async function handleDaeFile(file: File) {
+    const lowerName = file.name.toLowerCase();
+    if (lowerName.endsWith(".zip")) {
+      setDae((current) => ({
+        ...current,
+        status: "failed",
+        source: null,
+        fileName: file.name,
+        fileSize: file.size,
+        error:
+          "ZIP packages are not supported yet. Please upload the standalone .dae file directly.",
+      }));
+      return;
+    }
+
+    if (!lowerName.endsWith(".dae")) {
+      setDae((current) => ({
+        ...current,
+        status: "failed",
+        source: null,
+        fileName: file.name,
+        fileSize: file.size,
+        error: "Please choose a .dae file.",
+      }));
+      return;
+    }
+
+    if (file.size === 0) {
+      setDae((current) => ({
+        ...current,
+        status: "failed",
+        source: null,
+        fileName: file.name,
+        fileSize: file.size,
+        error: "The selected DAE file is empty.",
+      }));
+      return;
+    }
+
+    let unit: string | null = null;
+    let metersPerUnit: number | null = null;
+    let upAxis: string | null = null;
+    try {
+      const text = await file.text();
+      const parsed = parseDaeUnit(text);
+      unit = parsed.unit;
+      metersPerUnit = parsed.metersPerUnit;
+      upAxis = parsed.upAxis;
+    } catch {
+      // Metadata parsing is best-effort; geometry loading still proceeds.
+    }
+
+    const url = URL.createObjectURL(file);
+    setDae((current) => ({
+      ...current,
+      status: "loading",
+      source: null,
+      fileName: file.name,
+      fileSize: file.size,
+      error: null,
+      objectUrl: url,
+      metadata: {
+        sourceFile: file.name,
+        unit,
+        metersPerUnit,
+        upAxis,
+        dimensions: null,
+        objectCount: null,
+        meshCount: null,
+        materialCount: null,
+        missingTextures: [],
+        warnings: [],
+        groupProposals: [],
+      },
+    }));
+    loadDaeModel(url, file.name, file.size);
+  }
+
+  function handleDaeCsv(file: File) {
+    file
+      .text()
+      .then((text) => {
+        setCutList(parseCutListCsv(text));
+      })
+      .catch(() => {
+        setCutList([]);
+      });
+  }
+
+  function handleDaeXml(file: File) {
+    file
+      .slice(0, 2)
+      .arrayBuffer()
+      .then((buffer) => {
+        const bytes = new Uint8Array(buffer);
+        const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
+        if (isZip) {
+          setDae((current) => ({
+            ...current,
+            error: describeEncryptedXml(),
+          }));
+        }
+      })
+      .catch(() => {
+        // Ignore read failures for the optional companion file.
+      });
+  }
+
+  function handleDaeRemove() {
+    if (descriptor?.url && descriptor.url.startsWith("blob:")) {
+      URL.revokeObjectURL(descriptor.url);
+    }
+    if (dae.objectUrl) {
+      URL.revokeObjectURL(dae.objectUrl);
+    }
+    resetImportedModelState();
+    setDescriptor(null);
+    setDae(EMPTY_DAE_IMPORT);
+    setCutList([]);
+    commandRef.current = { view: "home", ...demoCameraPresets.home };
+  }
+
+  function handleDaeRetry() {
+    setDae((current) => ({
+      ...current,
+      status: "idle",
+      error: null,
+    }));
+  }
+
   function showSnap(message: string) {
     setSnapFlash(message);
     if (snapFlashTimerRef.current) {
@@ -3417,6 +3588,59 @@ export default function StudioShell({ projectName }: StudioShellProps) {
   }, [presenting]);
 
   const error = validationError ?? loadError;
+  useEffect(() => {
+    if (dae.status !== "loading" || !model || !modelInfo) {
+      return;
+    }
+
+    const counts = new Map<MaterialZoneId, number>();
+    const visit = (nodes: SceneNodeInfo[]) => {
+      for (const node of nodes) {
+        const classification = classifyDaeName(node.name);
+        counts.set(
+          classification.zone,
+          (counts.get(classification.zone) ?? 0) + 1,
+        );
+        visit(node.children);
+      }
+    };
+    visit(model.tree);
+
+    if (Object.keys(assignments).length === 0) {
+      const nextAssignments: MaterialAssignments = {};
+      for (const object of model.nodeMap.values()) {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh) {
+          nextAssignments[mesh.uuid] = classifyDaeName(
+            mesh.name || object.name,
+          ).zone;
+        }
+      }
+      setAssignments(nextAssignments);
+    }
+
+    setDae((current) => ({
+      ...current,
+      status: "ready",
+      metadata: current.metadata
+        ? {
+            ...current.metadata,
+            dimensions: {
+              widthMeters: modelInfo.bounds.size[0],
+              heightMeters: modelInfo.bounds.size[1],
+              depthMeters: modelInfo.bounds.size[2],
+            },
+            objectCount: modelInfo.groupCount + modelInfo.meshCount,
+            meshCount: modelInfo.meshCount,
+            materialCount: modelInfo.materialCount,
+            groupProposals: Array.from(counts.entries()).map(
+              ([zone, count]) => ({ zone, count }),
+            ),
+          }
+        : null,
+    }));
+  }, [assignments, dae.status, model, modelInfo]);
+
   const planPageMeta =
     pdfDocument && pageMetaEntry.key === `${pdfDocument.numPages}:${plan.selectedPage}`
       ? pageMetaEntry.meta
@@ -3630,24 +3854,33 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       <SimpleStudioShell
         stage={simpleStage}
         onStage={setSimpleStage}
-        fileName={plan.fileName}
-        fileSize={plan.fileSize}
-        pageCount={plan.pageCount}
-        hasRoom={room.walls.length > 0}
-        cabinetCount={Object.keys(cabinetInstances).length}
-        openingCount={trace ? Object.keys(trace.openings).length : 0}
-        hasCalibration={Boolean(plan.calibration?.confirmed)}
-        onAnalyze={() => {
-          handleAnalyzePage();
-          setSimpleStage("review");
-        }}
+        daeStatus={dae.status}
+        daeFileName={dae.fileName}
+        daeFileSize={dae.fileSize}
+        daeError={dae.error}
+        daeObjectCount={dae.metadata?.objectCount ?? null}
+        daeMeshCount={dae.metadata?.meshCount ?? null}
+        daeMaterialCount={dae.metadata?.materialCount ?? null}
+        daeDimensions={dae.metadata?.dimensions ?? null}
+        daeUnit={dae.metadata?.unit ?? null}
+        daeUpAxis={dae.metadata?.upAxis ?? null}
+        groupProposals={dae.metadata?.groupProposals ?? []}
+        cutListCount={cutList.length}
+        readyForDesign={isDaeReady(dae) && Boolean(descriptor)}
+        onDaeFile={handleDaeFile}
+        onDaeCsv={handleDaeCsv}
+        onDaeXml={handleDaeXml}
+        onDaeRemove={handleDaeRemove}
+        onDaeRetry={handleDaeRetry}
+        pdfFileName={plan.fileName}
+        pdfPageCount={plan.pageCount}
+        pdfError={pdfError}
+        onPdfFile={handlePlanFile}
+        onPdfRemove={handlePlanRemove}
         onOpenAdvanced={() => setExperienceMode("advanced")}
         onPresent={() => setPresenting(true)}
         presenting={presenting}
         onExitPresent={() => setPresenting(false)}
-        onFile={handlePlanFile}
-        onRemove={handlePlanRemove}
-        pdfError={pdfError}
         viewport={sceneCanvas}
         materialsPanel={simpleMaterialsPanel}
       />

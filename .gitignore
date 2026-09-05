@@ -20,6 +20,9 @@
 # production
 /build
 
+# local customer acceptance fixtures (never committed)
+/.studio-fixtures/
+
 # misc
 .DS_Store
 *.pem

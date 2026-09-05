@@ -12,8 +12,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isStudio =
     pathname.startsWith("/projects/") && pathname.endsWith("/studio");
+  const isStudioV2 = pathname.includes("/studio-v2");
 
-  const mainClassName = isStudio
+  const mainClassName = isStudioV2
+    ? "h-screen overflow-hidden"
+    : isStudio
     ? presenting
       ? "h-screen overflow-hidden"
       : "lg:h-[calc(100vh-4rem)] lg:overflow-hidden"
@@ -22,14 +25,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <StudioPresentationContext.Provider value={{ presenting, setPresenting }}>
       <div className="min-h-screen bg-zinc-50 text-zinc-900">
-        {!presenting ? (
+        {!presenting && !isStudioV2 ? (
           <AppSidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
           />
         ) : null}
-        <div className={presenting ? "" : "lg:pl-64"}>
-          {!presenting ? (
+        <div className={presenting || isStudioV2 ? "" : "lg:pl-64"}>
+          {!presenting && !isStudioV2 ? (
             <AppHeader onMenuClick={() => setSidebarOpen(true)} />
           ) : null}
           <main className={mainClassName}>{children}</main>

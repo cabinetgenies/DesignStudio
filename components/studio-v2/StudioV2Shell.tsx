@@ -76,14 +76,47 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
 
   return (
     <div className="flex h-screen flex-col bg-[#faf7f2] text-zinc-900">
-      <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-3">
-        <div>
-          <p className="text-sm font-semibold">{projectName}</p>
-          <p className="text-xs text-zinc-500">Studio V2 — DAE viewer foundation</p>
+      <header className="flex h-20 shrink-0 items-center justify-between border-b border-zinc-200 bg-[#fbfaf8] px-6">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#B98A3A]">
+            Studio
+          </span>
+          <span className="h-5 w-px bg-zinc-200" />
+          <span className="text-sm font-semibold text-zinc-900">
+            {projectName}
+          </span>
+          <span className="text-zinc-400">▾</span>
         </div>
-        <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-600">
-          {status}
-        </span>
+        <div className="flex items-center gap-3">
+          <span
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
+              status === "Kitchen ready"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-amber-200 bg-amber-50 text-amber-700"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                status === "Kitchen ready" ? "bg-emerald-500" : "bg-amber-500"
+              }`}
+            />
+            {status === "Kitchen ready"
+              ? "Ready to Present"
+              : "Kitchen Needs Review"}
+          </span>
+          <button
+            type="button"
+            className="rounded-md bg-[#B98A3A] px-4 py-2 text-sm font-medium text-white hover:bg-[#a97c31]"
+          >
+            Share with Client
+          </button>
+          <button type="button" className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-white">
+            History
+          </button>
+          <button type="button" className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-white">
+            Menu
+          </button>
+        </div>
       </header>
 
       {stage === "upload" ? (
@@ -254,6 +287,23 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
                   Viewer failed: {loadError}
                 </div>
               ) : null}
+              <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+                <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur">
+                  <button type="button" className="rounded-full bg-zinc-900 px-3 py-1 text-xs text-white">
+                    Orbit
+                  </button>
+                  <button type="button" className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-400">
+                    Walk
+                  </button>
+                  <button type="button" className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-400">
+                    Compare
+                  </button>
+                  <span className="h-4 w-px bg-zinc-200" />
+                  <span className="text-[11px] text-zinc-400">Morning</span>
+                  <input type="range" disabled className="w-24" />
+                  <span className="text-[11px] text-zinc-400">Evening</span>
+                </div>
+              </div>
             </div>
             {!presenting ? (
               <aside className="w-full shrink-0 border-t border-zinc-200 bg-white lg:w-[300px] lg:border-l lg:border-t-0 lg:overflow-y-auto">

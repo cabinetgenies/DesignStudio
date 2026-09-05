@@ -136,6 +136,7 @@ interface SceneCanvasProps {
   onCabinetRotateStart: (id: string, rotation: [number, number, number]) => void;
   onCabinetRotatePreview: (id: string, rotation: [number, number, number]) => void;
   cabinetRunPreview: CabinetInstance[] | null;
+  simpleView?: boolean;
 }
 
 type ControlsHandle = {
@@ -983,6 +984,7 @@ function SceneCanvas({
   onCabinetRotateStart,
   onCabinetRotatePreview,
   cabinetRunPreview,
+  simpleView = false,
 }: SceneCanvasProps) {
   const [ready, setReady] = useState(false);
   const [wallDragging, setWallDragging] = useState(false);
@@ -997,6 +999,20 @@ function SceneCanvas({
 
   const minDistance = Math.max(focus.radius * 0.05, 0.05);
   const maxDistance = Math.max(focus.radius * 8, 8);
+  const orbitTarget: [number, number, number] = simpleView
+    ? [
+        focus.center[0],
+        focus.center[1] + focus.radius * 0.35,
+        focus.center[2],
+      ]
+    : (demoCameraPresets.home.target as [number, number, number]);
+  const initialCamera: [number, number, number] = simpleView
+    ? [
+        focus.center[0] + focus.radius * 1.8,
+        focus.center[1] + focus.radius * 0.9,
+        focus.center[2] + focus.radius * 1.8,
+      ]
+    : (demoCameraPresets.home.position as [number, number, number]);
 
   return (
     <SceneErrorBoundary>
@@ -1005,7 +1021,7 @@ function SceneCanvas({
           shadows="soft"
           dpr={[1, 2]}
           camera={{
-            position: demoCameraPresets.home.position,
+            position: initialCamera,
             fov: 42,
             near: 0.1,
             far: 120,
@@ -1016,43 +1032,53 @@ function SceneCanvas({
           <SceneLights />
           <CameraClipPlanes focus={focus} />
 
-          <RoomRenderer
-            room={room}
-            showFloor={!plan.hideFloor}
-            variant={reviewing ? "subdued" : "solid"}
-          />
-          {previewRoom ? (
-            <RoomRenderer room={previewRoom} showFloor={false} variant="preview" />
+          {!simpleView ? (
+            <>
+              <RoomRenderer
+                room={room}
+                showFloor={!plan.hideFloor}
+                variant={reviewing ? "subdued" : "solid"}
+              />
+              {previewRoom ? (
+                <RoomRenderer
+                  room={previewRoom}
+                  showFloor={false}
+                  variant="preview"
+                />
+              ) : null}
+              <DimensionOverlay items={dimensions} />
+              <SnapGuides
+                snap={snapResult}
+                guidePoint={snapGuidePoint}
+                presenting={presenting}
+              />
+              <PlanUnderlay
+                document={pdfDocument}
+                selectedPage={plan.selectedPage}
+                pageRotation={plan.pageRotation}
+                calibration={plan.calibration}
+                underlay={plan.underlay}
+                floorY={room.floorY}
+                viewMode={viewMode}
+                presenting={presenting}
+                alignMode={plan.alignMode}
+                snap={snap}
+                onDragStart={onUnderlayDragStart}
+                onPreview={onUnderlayPreview}
+                onCommit={onUnderlayCommit}
+                onCancel={onUnderlayCancel}
+                onStatus={onUnderlayStatus}
+                onDraggingChange={(dragging) => {
+                  setUnderlayDragging(dragging);
+                  onUnderlayDraggingChange(dragging);
+                }}
+              />
+            </>
           ) : null}
-          <DimensionOverlay items={dimensions} />
-          <SnapGuides
-            snap={snapResult}
-            guidePoint={snapGuidePoint}
-            presenting={presenting}
-          />
-          <PlanUnderlay
-            document={pdfDocument}
-            selectedPage={plan.selectedPage}
-            pageRotation={plan.pageRotation}
-            calibration={plan.calibration}
-            underlay={plan.underlay}
-            floorY={room.floorY}
-            viewMode={viewMode}
-            presenting={presenting}
-            alignMode={plan.alignMode}
-            snap={snap}
-            onDragStart={onUnderlayDragStart}
-            onPreview={onUnderlayPreview}
-            onCommit={onUnderlayCommit}
-            onCancel={onUnderlayCancel}
-            onStatus={onUnderlayStatus}
-            onDraggingChange={(dragging) => {
-              setUnderlayDragging(dragging);
-              onUnderlayDraggingChange(dragging);
-            }}
-          />
 
-          {hasModel && modelScene ? (
+          {simpleView ? (
+            hasModel && modelScene ? <ImportedModel scene={modelScene} /> : null
+          ) : hasModel && modelScene ? (
             <group
               position={importTransform.position}
               rotation={importTransform.rotation}
@@ -1066,97 +1092,127 @@ function SceneCanvas({
             </group>
           )}
 
-          {Object.values(cabinetInstances).map((cabinet) => (
-            (() => {
-              const zone = cabinet.finishZone;
-              const finish =
-                materialsApplied && zone
-                  ? (() => {
-                      const id = zoneSelections[zone];
-                      const material = id
-                        ? materialsByZone[zone]?.find((m) => m.id === id)
-                        : null;
-                      return material ?? null;
-                    })()
-                  : null;
-              const hardware =
-                materialsApplied && zoneSelections.hardware
-                  ? materialsByZone.hardware.find(
-                      (m) => m.id === zoneSelections.hardware,
-                    ) ?? null
-                  : null;
-              return (
-                <ParametricCabinet
-                  key={cabinet.id}
-                  instance={cabinet}
-                  selected={selectedCabinetIds.includes(cabinet.id)}
-                  onSelect={presenting ? () => {} : onSelectCabinet}
-                  onRegisterObject={(id, object) => {
-                    if (object) cabinetRegistryRef.current.set(id, object);
-                    else cabinetRegistryRef.current.delete(id);
-                  }}
-                  materials={{
-                    box: finish ?? { color: "#e8e2d7", roughness: 0.75, metalness: 0.05 },
-                    front: finish ?? { color: "#c9b99a", roughness: 0.55, metalness: 0.05 },
-                    hardware: hardware ?? { color: "#4a4a4a", roughness: 0.35, metalness: 0.7 },
-                  }}
-                />
-              );
-            })()
-          ))}
+          {!simpleView ? (
+            <>
+              {Object.values(cabinetInstances).map((cabinet) =>
+                (() => {
+                  const zone = cabinet.finishZone;
+                  const finish =
+                    materialsApplied && zone
+                      ? (() => {
+                          const id = zoneSelections[zone];
+                          const material = id
+                            ? materialsByZone[zone]?.find((m) => m.id === id)
+                            : null;
+                          return material ?? null;
+                        })()
+                      : null;
+                  const hardware =
+                    materialsApplied && zoneSelections.hardware
+                      ? materialsByZone.hardware.find(
+                          (m) => m.id === zoneSelections.hardware,
+                        ) ?? null
+                      : null;
+                  return (
+                    <ParametricCabinet
+                      key={cabinet.id}
+                      instance={cabinet}
+                      selected={selectedCabinetIds.includes(cabinet.id)}
+                      onSelect={presenting ? () => {} : onSelectCabinet}
+                      onRegisterObject={(id, object) => {
+                        if (object) cabinetRegistryRef.current.set(id, object);
+                        else cabinetRegistryRef.current.delete(id);
+                      }}
+                      materials={{
+                        box:
+                          finish ?? {
+                            color: "#e8e2d7",
+                            roughness: 0.75,
+                            metalness: 0.05,
+                          },
+                        front:
+                          finish ?? {
+                            color: "#c9b99a",
+                            roughness: 0.55,
+                            metalness: 0.05,
+                          },
+                        hardware:
+                          hardware ?? {
+                            color: "#4a4a4a",
+                            roughness: 0.35,
+                            metalness: 0.7,
+                          },
+                      }}
+                    />
+                  );
+                })(),
+              )}
 
-          {cabinetRunPreview?.map((cabinet) => (
-            <mesh
-              key={`preview-${cabinet.id}`}
-              position={cabinet.position}
-              rotation={cabinet.rotation}
-              raycast={() => null}
-            >
-              <boxGeometry args={[cabinet.widthM, cabinet.heightM, cabinet.depthM]} />
-              <meshStandardMaterial color="#38bdf8" transparent opacity={0.35} depthWrite={false} />
-            </mesh>
-          ))}
+              {cabinetRunPreview?.map((cabinet) => (
+                <mesh
+                  key={`preview-${cabinet.id}`}
+                  position={cabinet.position}
+                  rotation={cabinet.rotation}
+                  raycast={() => null}
+                >
+                  <boxGeometry
+                    args={[cabinet.widthM, cabinet.heightM, cabinet.depthM]}
+                  />
+                  <meshStandardMaterial
+                    color="#38bdf8"
+                    transparent
+                    opacity={0.35}
+                    depthWrite={false}
+                  />
+                </mesh>
+              ))}
 
-          {settings.showGrid ? <KitchenGrid position={gridOrigin} /> : null}
+              {settings.showGrid ? <KitchenGrid position={gridOrigin} /> : null}
+            </>
+          ) : null}
           <OrbitControls
             makeDefault
             enabled={!wallDragging && !underlayDragging && !cabinetDragging}
-            enableDamping={false}
+            enableDamping={simpleView}
             enablePan
             minDistance={minDistance}
             maxDistance={maxDistance}
             minPolarAngle={0.1}
             maxPolarAngle={Math.PI / 2 - 0.03}
-            target={demoCameraPresets.home.target}
+            target={orbitTarget}
           />
           <CameraRig commandRef={commandRef} focus={focus} />
           <ShadowController enabled={settings.showShadows} />
-          <InteractionHandler
-            hasModel={hasModel}
-            onSelectObject={onSelectObject}
-            onSelectWall={onSelectWall}
-            onSelectOpening={onSelectOpening}
-          />
-          <WallEndpointHandles
-            room={room}
-            selectedWallId={selectedWallId}
-            snap={snap}
-            tolerance={endpointTolerance}
-            viewMode={viewMode}
-            presenting={presenting}
-            transformMode={
-              selectedCabinetIds.length === 1 ? null : transformMode
-            }
-            onDragStart={onWallDragStart}
-            onPreview={onWallPreview}
-            onCommit={onWallCommit}
-            onCancel={onWallCancel}
-            onStatus={onWallStatus}
-            onDraggingChange={(dragging) => {
-              setWallDragging(dragging);
-              onWallDraggingChange(dragging);
-            }}
-          />
+          {!simpleView ? (
+            <InteractionHandler
+              hasModel={hasModel}
+              onSelectObject={onSelectObject}
+              onSelectWall={onSelectWall}
+              onSelectOpening={onSelectOpening}
+            />
+          ) : null}
+          {!simpleView ? (
+            <WallEndpointHandles
+              room={room}
+              selectedWallId={selectedWallId}
+              snap={snap}
+              tolerance={endpointTolerance}
+              viewMode={viewMode}
+              presenting={presenting}
+              transformMode={
+                selectedCabinetIds.length === 1 ? null : transformMode
+              }
+              onDragStart={onWallDragStart}
+              onPreview={onWallPreview}
+              onCommit={onWallCommit}
+              onCancel={onWallCancel}
+              onStatus={onWallStatus}
+              onDraggingChange={(dragging) => {
+                setWallDragging(dragging);
+                onWallDraggingChange(dragging);
+              }}
+            />
+          ) : null}
           <MaterialController
             sceneRef={modelSceneRef}
             demoRef={demoRef}
@@ -1164,29 +1220,32 @@ function SceneCanvas({
             assignments={assignments}
             zoneSelections={zoneSelections}
             materialsApplied={materialsApplied}
-            showZones={showZones}
-            selectedKeys={selectedKeys}
+            showZones={simpleView ? false : showZones}
+            selectedKeys={simpleView ? [] : selectedKeys}
           />
-          <TransformController
-            hasModel={hasModel}
-            selectedKeys={selectedKeys}
-            transformMode={transformMode}
-            snap={snap}
-            transforms={transforms}
-            originals={originals}
-            wallPlanes={wallPlanes}
-            room={room}
-            activeObjects={activeObjects}
-            sceneApiRef={sceneApiRef}
-            onCommit={onCommitTransforms}
-            onSnap={onSnap}
-            onSnapStatus={onSnapStatus}
-            onSnapResult={(result, point) => {
-              setSnapResult(result);
-              setSnapGuidePoint(point);
-            }}
-          />
-          {selectedCabinetIds.length === 1 &&
+          {!simpleView ? (
+            <TransformController
+              hasModel={hasModel}
+              selectedKeys={selectedKeys}
+              transformMode={transformMode}
+              snap={snap}
+              transforms={transforms}
+              originals={originals}
+              wallPlanes={wallPlanes}
+              room={room}
+              activeObjects={activeObjects}
+              sceneApiRef={sceneApiRef}
+              onCommit={onCommitTransforms}
+              onSnap={onSnap}
+              onSnapStatus={onSnapStatus}
+              onSnapResult={(result, point) => {
+                setSnapResult(result);
+                setSnapGuidePoint(point);
+              }}
+            />
+          ) : null}
+          {!simpleView &&
+          selectedCabinetIds.length === 1 &&
           (transformMode === "translate" || transformMode === "rotate") &&
           !presenting
             ? (() => {

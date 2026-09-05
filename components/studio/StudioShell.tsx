@@ -137,6 +137,7 @@ import {
 import DetectionToTraceReview from "./DetectionToTraceReview";
 import SimpleStudioShell from "./SimpleStudioShell";
 import SimpleMaterialPanel from "./SimpleMaterialPanel";
+import SimpleCameraControls from "./SimpleCameraControls";
 import {
   createCabinetInstance,
   getCatalogEntry,
@@ -866,6 +867,46 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     commandRef.current = { view: "home", ...pose };
     setViewMode(view);
     setTransformMode(null);
+  }
+
+  function handleSimpleCamera(
+    view: "reset" | "front" | "left" | "right" | "top" | "inside",
+  ) {
+    if (!modelInfo) {
+      return;
+    }
+    const center = modelInfo.bounds.center;
+    const radius = Math.max(
+      Math.hypot(
+        modelInfo.bounds.size[0],
+        modelInfo.bounds.size[1],
+        modelInfo.bounds.size[2],
+      ) * 0.5,
+      0.001,
+    );
+    const targetY = center[1] + radius * 0.35;
+    const distance = radius * 1.8;
+    const positions: Record<
+      "reset" | "front" | "left" | "right" | "top" | "inside",
+      [number, number, number]
+    > = {
+      reset: [
+        center[0] + distance,
+        center[1] + radius * 0.9,
+        center[2] + distance,
+      ],
+      front: [center[0], targetY, center[2] + distance],
+      left: [center[0] - distance, targetY, center[2]],
+      right: [center[0] + distance, targetY, center[2]],
+      top: [center[0], center[1] + radius * 2.2, center[2] + 0.01],
+      inside: [center[0], center[1] + radius * 0.35, center[2] + radius * 0.7],
+    };
+    commandRef.current = {
+      view: "home",
+      position: positions[view],
+      target: [center[0], targetY, center[2]],
+      duration: 0.6,
+    };
   }
 
   function handleFrameSelection() {
@@ -3885,6 +3926,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       onCabinetRotateStart={handleCabinetRotateStart}
       onCabinetRotatePreview={handleCabinetRotatePreview}
       cabinetRunPreview={cabinetRunProposal?.cabinets ?? null}
+      simpleView={experienceMode === "simple"}
     />
   );
 
@@ -3893,6 +3935,9 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       selections={zoneSelections}
       onSelect={handleSelectMaterial}
     />
+  );
+  const simpleCameraControls = (
+    <SimpleCameraControls onCamera={handleSimpleCamera} />
   );
 
   if (experienceMode === "simple") {
@@ -3930,6 +3975,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
         onExitPresent={() => setPresenting(false)}
         viewport={sceneCanvas}
         materialsPanel={simpleMaterialsPanel}
+        cameraControls={simpleCameraControls}
       />
     );
   }

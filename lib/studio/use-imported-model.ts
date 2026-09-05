@@ -10,6 +10,8 @@ import {
   type InspectedModel,
 } from "./model-inspection";
 import type { EditableObjectInfo } from "./editable-objects";
+import type { ImportedModelSource } from "./imported-model-source";
+import { selectLoader } from "./loader-selection";
 
 const DEBUG_IMPORT = process.env.NODE_ENV !== "production";
 
@@ -26,10 +28,6 @@ interface ImportedModelState {
   model: InspectedModel | null;
   editableObjects: EditableObjectInfo[];
   error: string | null;
-}
-
-function isDaeUrl(url: string): boolean {
-  return url.toLowerCase().endsWith(".dae");
 }
 
 function prepareEditableObjects(root: THREE.Object3D): EditableObjectInfo[] {
@@ -84,7 +82,7 @@ function floorAndCenter(root: THREE.Object3D): THREE.Group {
   return wrapper;
 }
 
-export function useImportedModel(url: string | null): {
+export function useImportedModel(source: ImportedModelSource | null): {
   scene: THREE.Group | null;
   sceneRef: { current: THREE.Group | null };
   model: InspectedModel | null;
@@ -106,36 +104,37 @@ export function useImportedModel(url: string | null): {
     let timedOut = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    if (!url) {
+    if (!source) {
       if (sceneRef.current) {
         disposeObject(sceneRef.current);
         sceneRef.current = null;
       }
-      importMark("reset", { url: null });
+      importMark("reset", { source: null });
       return;
     }
 
-    const targetUrl: string = url;
-    const useDae = isDaeUrl(targetUrl);
-    importMark("start", { url: targetUrl, useDae });
+    const targetUrl: string = source.url;
+    const format = source.format;
+    const loaderSelection = selectLoader(format);
+    importMark("start", { format, url: targetUrl });
 
     timeoutId = setTimeout(() => {
       if (cancelled || timedOut) {
         return;
       }
       timedOut = true;
-      importMark("timeout", { url: targetUrl });
+      importMark("timeout", { format, url: targetUrl });
       setState({
         url: targetUrl,
         scene: null,
         model: null,
         editableObjects: [],
-        error: "The DAE import timed out.",
+        error: "The model import timed out.",
       });
     }, 60000);
 
     async function load() {
-      if (useDae) {
+      if (loaderSelection === "collada") {
         const loader = new ColladaLoader();
         const collada = await loader.loadAsync(targetUrl);
         if (!collada || !collada.scene) {
@@ -152,16 +151,20 @@ export function useImportedModel(url: string | null): {
         return floorAndCenter(imported);
       }
 
-      const loader = new GLTFLoader();
-      const gltf = await loader.loadAsync(targetUrl);
-      gltf.scene.traverse((object) => {
-        const mesh = object as THREE.Mesh;
-        if (mesh.isMesh) {
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-        }
-      });
-      return gltf.scene;
+      if (loaderSelection === "gltf") {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync(targetUrl);
+        gltf.scene.traverse((object) => {
+          const mesh = object as THREE.Mesh;
+          if (mesh.isMesh) {
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+          }
+        });
+        return gltf.scene;
+      }
+
+      throw new Error(`Unsupported imported-model format: ${String(format)}`);
     }
 
     load()
@@ -185,11 +188,12 @@ export function useImportedModel(url: string | null): {
 
         sceneRef.current = loadedScene;
         importMark("success", {
+          format,
           url: targetUrl,
           meshes: loadedScene.children.length,
         });
         setState({
-          url,
+          url: targetUrl,
           scene: loadedScene,
           model: inspectModel(loadedScene),
           editableObjects: prepareEditableObjects(loadedScene),
@@ -207,9 +211,9 @@ export function useImportedModel(url: string | null): {
         if (cancelled) {
           return;
         }
-        importMark("error", { url: targetUrl, error: loadError });
+        importMark("error", { format, url: targetUrl, error: loadError });
         setState({
-          url,
+          url: targetUrl,
           scene: null,
           model: null,
           editableObjects: [],
@@ -226,7 +230,7 @@ export function useImportedModel(url: string | null): {
         clearTimeout(timeoutId);
       }
     };
-  }, [url]);
+  }, [source]);
 
   useEffect(() => {
     return () => {
@@ -237,14 +241,14 @@ export function useImportedModel(url: string | null): {
     };
   }, []);
 
-  const isCurrent = url !== null && state.url === url;
+  const isCurrent = source !== null && state.url === source.url;
 
   return {
     scene: isCurrent ? state.scene : null,
     sceneRef,
     model: isCurrent ? state.model : null,
     editableObjects: isCurrent ? state.editableObjects : [],
-    loading: url !== null && !isCurrent,
+    loading: source !== null && !isCurrent,
     error: isCurrent ? state.error : null,
   };
 }

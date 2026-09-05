@@ -208,6 +208,7 @@ interface StudioShellProps {
 }
 
 interface ModelDescriptor {
+  format: "dae" | "glb";
   url: string;
   fileName: string;
   fileSize: number;
@@ -481,7 +482,15 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     editableObjects: importedObjects,
     loading,
     error: loadError,
-  } = useImportedModel(descriptor?.url ?? null);
+  } = useImportedModel(
+    descriptor
+      ? {
+          format: descriptor.format,
+          url: descriptor.url,
+          filename: descriptor.fileName,
+        }
+      : null,
+  );
 
   const modelInfo = model?.info ?? null;
   const tree = useMemo(() => model?.tree ?? [], [model]);
@@ -3255,6 +3264,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     setTransformMode(null);
     setValidationError(null);
     setDescriptor({
+      format: "glb",
       url: URL.createObjectURL(file),
       fileName: file.name,
       fileSize: file.size,
@@ -3301,7 +3311,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       URL.revokeObjectURL(descriptor.url);
     }
     resetImportedModelState();
-    setDescriptor({ url, fileName, fileSize });
+    setDescriptor({ format: "dae", url, fileName, fileSize });
     setDae((current) => ({
       ...current,
       status: "loading",

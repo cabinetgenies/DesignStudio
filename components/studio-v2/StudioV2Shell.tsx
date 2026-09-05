@@ -6,6 +6,7 @@ import type { V2View } from "@/lib/studio-v2/v2-viewer";
 import V2Viewport, { type V2ViewportHandle } from "./V2Viewport";
 import { classifyDaeAssemblies, type V2Assembly } from "@/lib/studio-v2/dae-classify";
 import { V2_MATERIALS, V2_ZONE_LABELS, type V2MaterialZone } from "@/lib/studio-v2/materials";
+import type { V2MaterialSelections } from "@/lib/studio-v2/v2-viewer";
 
 type Stage = "upload" | "review" | "finishes" | "viewer";
 type Status =
@@ -24,6 +25,9 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   const [diagnostics, setDiagnostics] = useState<DaePreprocessResult | null>(null);
   const [daeXml, setDaeXml] = useState<string | null>(null);
   const [assemblies, setAssemblies] = useState<V2Assembly[]>([]);
+  const [selections, setSelections] = useState<V2MaterialSelections>({});
+  const [highlightZone, setHighlightZone] = useState<V2MaterialZone | null>(null);
+  const [presenting, setPresenting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const xmlRef = useRef<string | null>(null);
   const viewerRef = useRef<V2ViewportHandle | null>(null);
@@ -223,21 +227,129 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
               )}
             </div>
           </div>
-          <div className="min-h-0 flex-1">
-            <V2Viewport
-              ref={viewerRef}
-              xml={daeXml}
-              onLoaded={(result) => {
-                setStatus(
-                  result.meshCount > 0 ? "Kitchen needs review" : "Kitchen ready",
-                );
-              }}
-              onError={(message) => {
-                setLoadError(message);
-                setStatus("Import failed");
-              }}
-            />
+          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+            <div className="min-h-[360px] flex-1 lg:min-h-0">
+              <V2Viewport
+                ref={viewerRef}
+                xml={daeXml}
+                assemblies={assemblies}
+                onLoaded={(result) => {
+                  setStatus(
+                    result.meshCount > 0 ? "Kitchen needs review" : "Kitchen ready",
+                  );
+                }}
+                onError={(message) => {
+                  setLoadError(message);
+                  setStatus("Import failed");
+                }}
+              />
+            </div>
+            {!presenting ? (
+              <aside className="w-full shrink-0 border-t border-zinc-200 bg-white lg:w-[300px] lg:border-l lg:border-t-0 lg:overflow-y-auto">
+                <div className="p-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-zinc-800">Finishes</h2>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        viewerRef.current?.restoreAllMaterials();
+                        setSelections({});
+                      }}
+                      className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-50"
+                    >
+                      Restore Original
+                    </button>
+                  </div>
+                  <div className="mt-4 space-y-4">
+                    {(Object.keys(V2_ZONE_LABELS) as V2MaterialZone[]).map(
+                      (zone) => {
+                        const zoneAssemblies = assemblies.filter(
+                          (a) => a.proposedZone === zone,
+                        );
+                        return (
+                          <div key={zone}>
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium text-zinc-800">
+                                {V2_ZONE_LABELS[zone]}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next =
+                                    highlightZone === zone ? null : zone;
+                                  setHighlightZone(next);
+                                  viewerRef.current?.highlightZone(next);
+                                }}
+                                className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50"
+                              >
+                                {highlightZone === zone
+                                  ? "Stop Highlighting"
+                                  : "Highlight Zone"}
+                              </button>
+                            </div>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              {zoneAssemblies.length} assemblies ·{" "}
+                              {selections[zone]
+                                ? V2_MATERIALS[zone].find(
+                                    (m) => m.id === selections[zone],
+                                  )?.label
+                                : "Original"}
+                            </p>
+                            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+                              {V2_MATERIALS[zone].map((material) => (
+                                <button
+                                  key={material.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelections((current) => ({
+                                      ...current,
+                                      [zone]: material.id,
+                                    }));
+                                    viewerRef.current?.setZoneMaterial(
+                                      zone,
+                                      material.id,
+                                    );
+                                  }}
+                                  title={material.label}
+                                  className={`h-7 w-7 shrink-0 rounded-full border ${
+                                    selections[zone] === material.id
+                                      ? "border-zinc-900 ring-2 ring-zinc-300"
+                                      : "border-black/10 hover:border-zinc-400"
+                                  }`}
+                                  style={{ backgroundColor: material.color }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+              </aside>
+            ) : null}
           </div>
+          {presenting ? (
+            <div className="border-t border-zinc-200 bg-white px-4 py-2 text-right">
+              <button
+                type="button"
+                onClick={() => setPresenting(false)}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                Exit Presentation
+              </button>
+            </div>
+          ) : (
+            <div className="border-t border-zinc-200 bg-white px-4 py-2 text-right">
+              <button
+                type="button"
+                onClick={() => setPresenting(true)}
+                className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
+              >
+                Present to Client
+              </button>
+            </div>
+          )}
         </main>
       )}
     </div>

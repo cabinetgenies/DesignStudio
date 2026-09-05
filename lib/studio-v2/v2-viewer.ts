@@ -2,6 +2,12 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ColladaLoader } from "three/examples/jsm/loaders/ColladaLoader.js";
 import { applyColladaPatches } from "@/lib/studio/collada-patches";
+import type { V2Assembly } from "./dae-classify";
+import {
+  getV2Material,
+  type V2Material,
+  type V2MaterialZone,
+} from "./materials";
 
 export type V2View = "reset" | "front" | "left" | "right" | "top" | "inside";
 
@@ -16,6 +22,8 @@ export interface V2LoadResult {
   dimensions: [number, number, number];
 }
 
+export type V2MaterialSelections = Partial<Record<V2MaterialZone, string>>;
+
 const NEUTRAL = 0x9a948c;
 
 export class V2Viewer {
@@ -28,6 +36,9 @@ export class V2Viewer {
   private resizeObserver: ResizeObserver | null = null;
   private container: HTMLElement;
   private loader: ColladaLoader;
+  private originalMaterials = new Map<string, THREE.Material | THREE.Material[]>();
+  private overrideClones = new Map<string, THREE.Material | THREE.Material[]>();
+  private zoneMeshes = new Map<V2MaterialZone, THREE.Mesh[]>();
 
   constructor(container: HTMLElement) {
     applyColladaPatches();
@@ -82,7 +93,7 @@ export class V2Viewer {
     this.renderer.render(this.scene, this.camera);
   };
 
-  loadDae(xml: string): V2LoadResult {
+  loadDae(xml: string, assemblies: V2Assembly[] = []): V2LoadResult {
     const collada = this.loader.parse(xml, "");
     if (!collada || !collada.scene) {
       throw new Error("The DAE file did not produce a scene.");
@@ -107,10 +118,55 @@ export class V2Viewer {
 
     this.modelRoot = wrapper;
     this.scene.add(wrapper);
+    this.buildSceneIndex(wrapper, assemblies);
     this.frame(wrapper);
 
     const counts = countMeshes(wrapper);
     return counts;
+  }
+
+  private buildSceneIndex(root: THREE.Object3D, assemblies: V2Assembly[]) {
+    this.originalMaterials.clear();
+    this.overrideClones.clear();
+    this.zoneMeshes.clear();
+
+    const zoneByName = new Map<string, V2MaterialZone>();
+    for (const assembly of assemblies) {
+      if (assembly.proposedZone) {
+        zoneByName.set(assembly.name, assembly.proposedZone);
+      }
+    }
+
+    root.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) {
+        return;
+      }
+      const key = mesh.uuid;
+      this.originalMaterials.set(
+        key,
+        Array.isArray(mesh.material) ? mesh.material.slice() : mesh.material,
+      );
+
+      let zone: V2MaterialZone | null = null;
+      let parent: THREE.Object3D | null = mesh.parent;
+      while (parent && !zone) {
+        const match = zoneByName.get(parent.name);
+        if (match) {
+          zone = match;
+        } else {
+          parent = parent.parent;
+        }
+      }
+      if (!zone) {
+        zone = zoneByName.get(mesh.name) ?? null;
+      }
+      if (zone) {
+        const list = this.zoneMeshes.get(zone) ?? [];
+        list.push(mesh);
+        this.zoneMeshes.set(zone, list);
+      }
+    });
   }
 
   clearModel() {
@@ -120,10 +176,27 @@ export class V2Viewer {
 
   private clearModelOnly() {
     if (this.modelRoot) {
+      for (const mesh of this.collectAllMeshes(this.modelRoot)) {
+        this.restoreMeshOriginal(mesh);
+      }
       this.scene.remove(this.modelRoot);
       disposeObject(this.modelRoot);
       this.modelRoot = null;
     }
+    this.originalMaterials.clear();
+    this.overrideClones.clear();
+    this.zoneMeshes.clear();
+  }
+
+  private collectAllMeshes(root: THREE.Object3D): THREE.Mesh[] {
+    const meshes: THREE.Mesh[] = [];
+    root.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh) {
+        meshes.push(mesh);
+      }
+    });
+    return meshes;
   }
 
   private normalizeWrapper(wrapper: THREE.Group) {
@@ -205,10 +278,131 @@ export class V2Viewer {
     };
   }
 
+  setZoneMaterial(zone: V2MaterialZone, materialId: string) {
+    const material = getV2Material(zone, materialId);
+    const meshes = this.zoneMeshes.get(zone) ?? [];
+    for (const mesh of meshes) {
+      this.applyMaterialToMesh(mesh, material);
+    }
+  }
+
+  clearZoneMaterial(zone: V2MaterialZone) {
+    const meshes = this.zoneMeshes.get(zone) ?? [];
+    for (const mesh of meshes) {
+      this.restoreMeshOriginal(mesh);
+    }
+  }
+
+  restoreAllMaterials() {
+    const meshes = new Set<THREE.Mesh>();
+    for (const list of this.zoneMeshes.values()) {
+      for (const mesh of list) {
+        meshes.add(mesh);
+      }
+    }
+    for (const mesh of meshes) {
+      this.restoreMeshOriginal(mesh);
+    }
+  }
+
+  applyMaterialSelections(selections: V2MaterialSelections) {
+    for (const [zone, materialId] of Object.entries(selections) as [
+      V2MaterialZone,
+      string,
+    ][]) {
+      if (materialId) {
+        this.setZoneMaterial(zone, materialId);
+      } else {
+        this.clearZoneMaterial(zone);
+      }
+    }
+  }
+
+  highlightZone(zone: V2MaterialZone | null) {
+    for (const [currentZone, meshes] of this.zoneMeshes.entries()) {
+      const active = zone !== null && currentZone === zone;
+      for (const mesh of meshes) {
+        const materials = Array.isArray(mesh.material)
+          ? mesh.material
+          : [mesh.material];
+        for (const material of materials) {
+          if (!material) {
+            continue;
+          }
+          if ("emissive" in material) {
+            const standard = material as THREE.MeshStandardMaterial;
+            standard.emissive.set(active ? "#3b82f6" : "#000000");
+            standard.emissiveIntensity = active ? 0.35 : 0;
+          }
+        }
+      }
+    }
+  }
+
+  private applyMaterialToMesh(mesh: THREE.Mesh, material: V2Material | null) {
+    const key = mesh.uuid;
+    this.disposeOverrides(mesh);
+    const original = this.originalMaterials.get(key);
+    if (!original) {
+      return;
+    }
+    const isArray = Array.isArray(original);
+    const originals = isArray ? original : [original];
+    const clones = originals.map((source) => {
+      if (!source || !material) {
+        return source;
+      }
+      const clone = source.clone();
+      if ("color" in clone) {
+        (clone as THREE.MeshStandardMaterial).color.set(material.color);
+      }
+      if ("roughness" in clone) {
+        (clone as THREE.MeshStandardMaterial).roughness = material.roughness;
+      }
+      if ("metalness" in clone) {
+        (clone as THREE.MeshStandardMaterial).metalness = material.metalness;
+      }
+      if ("envMapIntensity" in clone) {
+        (clone as THREE.MeshStandardMaterial).envMapIntensity =
+          material.envMapIntensity;
+      }
+      clone.needsUpdate = true;
+      return clone;
+    });
+    mesh.material = isArray ? clones : clones[0];
+    this.overrideClones.set(key, mesh.material);
+  }
+
+  private restoreMeshOriginal(mesh: THREE.Mesh) {
+    const key = mesh.uuid;
+    this.disposeOverrides(mesh);
+    const original = this.originalMaterials.get(key);
+    if (original !== undefined) {
+      mesh.material = original;
+    }
+  }
+
+  private disposeOverrides(mesh: THREE.Mesh) {
+    const key = mesh.uuid;
+    const previous = this.overrideClones.get(key);
+    if (previous) {
+      const materials = Array.isArray(previous) ? previous : [previous];
+      for (const material of materials) {
+        if (material) {
+          material.dispose();
+        }
+      }
+      this.overrideClones.delete(key);
+    }
+  }
+
   dispose() {
     cancelAnimationFrame(this.animationId);
     this.resizeObserver?.disconnect();
     this.clearModelOnly();
+    this.originalMaterials.clear();
+    this.overrideClones.clear();
+    this.zoneMeshes.clear();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

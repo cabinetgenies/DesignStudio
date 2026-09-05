@@ -207,13 +207,15 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
         </main>
       ) : (
         <main className="flex min-h-0 flex-1">
-          <V2WorkflowRail
-            stage={stage}
-            fileName={fileName}
-            collapsed={leftRailCollapsed}
-            onCollapse={() => setLeftRailCollapsed((value) => !value)}
-            onStage={setStage}
-          />
+          {!presenting ? (
+            <V2WorkflowRail
+              stage={stage}
+              fileName={fileName}
+              collapsed={leftRailCollapsed}
+              onCollapse={() => setLeftRailCollapsed((value) => !value)}
+              onStage={setStage}
+            />
+          ) : null}
           <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2">
             <button

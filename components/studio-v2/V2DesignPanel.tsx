@@ -14,6 +14,7 @@ export default function V2DesignPanel({
   onHighlight,
   highlightZone,
   onView,
+  zoneCounts,
 }: {
   selections: V2MaterialSelections;
   onSelect: (zone: V2MaterialZone, materialId: string) => void;
@@ -21,6 +22,7 @@ export default function V2DesignPanel({
   onHighlight: (zone: V2MaterialZone | null) => void;
   highlightZone: V2MaterialZone | null;
   onView: (view: V2View) => void;
+  zoneCounts?: Partial<Record<V2MaterialZone, { meshes: number }>>;
 }) {
   const [tab, setTab] = useState<Tab>("materials");
   const [openZone, setOpenZone] = useState<V2MaterialZone | null>("perimeter");
@@ -56,6 +58,8 @@ export default function V2DesignPanel({
                 const materials = V2_MATERIALS[zone];
                 const selectedId = selections[zone];
                 const open = openZone === zone;
+                const meshCount = zoneCounts?.[zone]?.meshes;
+                const notAssigned = meshCount !== undefined && meshCount === 0;
                 return (
                   <div key={zone} className="border-b border-zinc-100">
                     <button
@@ -67,7 +71,9 @@ export default function V2DesignPanel({
                         {V2_ZONE_LABELS[zone]}
                       </span>
                       <span className="text-xs text-zinc-500">
-                        {materials.length === 0
+                        {notAssigned
+                          ? "Not assigned"
+                          : materials.length === 0
                           ? "Needs assignment"
                           : selectedId
                             ? materials.find((m) => m.id === selectedId)?.label
@@ -83,13 +89,14 @@ export default function V2DesignPanel({
                             <button
                               key={material.id}
                               type="button"
+                              disabled={notAssigned}
                               onClick={() => onSelect(zone, material.id)}
                               title={material.label}
                               className={`h-8 w-8 rounded-full border ${
                                 selectedId === material.id
                                   ? "border-zinc-900 ring-2 ring-zinc-300"
                                   : "border-black/10 hover:border-zinc-400"
-                              }`}
+                              } ${notAssigned ? "opacity-40" : ""}`}
                               style={{ backgroundColor: material.color }}
                             />
                           ))

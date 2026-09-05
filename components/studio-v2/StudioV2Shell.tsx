@@ -6,6 +6,7 @@ import V2Viewport, { type V2ViewportHandle } from "./V2Viewport";
 import { classifyDaeAssemblies, type V2Assembly } from "@/lib/studio-v2/dae-classify";
 import type { V2MaterialSelections } from "@/lib/studio-v2/v2-viewer";
 import type { V2MaterialZone } from "@/lib/studio-v2/materials";
+import type { V2ClassificationSummary } from "@/lib/studio-v2/runtime-classify";
 import { V2_ZONE_LABELS } from "@/lib/studio-v2/materials";
 import V2WorkflowRail, { type V2Stage } from "./V2WorkflowRail";
 import V2StudioHeader from "./V2StudioHeader";
@@ -32,6 +33,8 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   const [highlightZone, setHighlightZone] = useState<V2MaterialZone | null>(null);
   const [presenting, setPresenting] = useState(false);
   const [leftRailCollapsed, setLeftRailCollapsed] = useState(false);
+  const [runtimeSummary, setRuntimeSummary] =
+    useState<V2ClassificationSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const viewerRef = useRef<V2ViewportHandle | null>(null);
 
@@ -100,6 +103,9 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
             xml={daeXml}
             assemblies={assemblies}
             onLoaded={(result) => {
+              if (result.classification) {
+                setRuntimeSummary(result.classification);
+              }
               setStatus(
                 result.meshCount > 0 ? "Kitchen needs review" : "Kitchen ready",
               );
@@ -261,6 +267,7 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
             }}
             highlightZone={highlightZone}
             onView={(view) => viewerRef.current?.setView(view)}
+            zoneCounts={runtimeSummary?.zoneCounts}
           />
         ) : null}
       </div>

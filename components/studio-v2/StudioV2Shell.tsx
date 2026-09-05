@@ -8,10 +8,11 @@ import type { V2MaterialSelections } from "@/lib/studio-v2/v2-viewer";
 import type { V2MaterialZone } from "@/lib/studio-v2/materials";
 import type { V2ClassificationSummary } from "@/lib/studio-v2/runtime-classify";
 import { V2_ZONE_LABELS } from "@/lib/studio-v2/materials";
-import V2WorkflowRail, { type V2Stage } from "./V2WorkflowRail";
+import V2RoomsSidebar from "./V2RoomsSidebar";
 import V2StudioHeader from "./V2StudioHeader";
 import V2DesignPanel from "./V2DesignPanel";
 import V2ViewportControls from "./V2ViewportControls";
+import { createRoom, type StudioRoom, type StudioRoomType } from "@/lib/studio-v2/rooms";
 
 type Status =
   | "Reading file"
@@ -22,7 +23,9 @@ type Status =
   | "Import failed";
 
 export default function StudioV2Shell({ projectName }: { projectName: string }) {
-  const [stage, setStage] = useState<V2Stage>("upload");
+  const [stage, setStage] = useState<"upload" | "review" | "finishes" | "viewer">(
+    "upload",
+  );
   const [status, setStatus] = useState<Status>("Reading file");
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileSize, setFileSize] = useState<number | null>(null);
@@ -38,6 +41,9 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   );
   const [runtimeSummary, setRuntimeSummary] =
     useState<V2ClassificationSummary | null>(null);
+  const initialRoom = createRoom("kitchen");
+  const [rooms, setRooms] = useState<StudioRoom[]>([initialRoom]);
+  const [activeRoomId, setActiveRoomId] = useState<string>(initialRoom.id);
   const [loadError, setLoadError] = useState<string | null>(null);
   const viewerRef = useRef<V2ViewportHandle | null>(null);
 
@@ -59,6 +65,18 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
       setDaeXml(processed.xml);
       setDiagnostics(processed);
       setAssemblies(classifyDaeAssemblies(processed.xml));
+      setRooms((current) =>
+        current.map((room) =>
+          room.id === activeRoomId
+            ? {
+                ...room,
+                daeFileName: file.name,
+                status: "ready",
+                error: null,
+              }
+            : room,
+        ),
+      );
       setStatus(
         processed.duplicateIdCount > 0 || processed.missingTextures.length > 0
           ? "Kitchen needs review"
@@ -91,12 +109,42 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
 
       <div className="flex min-h-0 flex-1">
         {!presenting ? (
-          <V2WorkflowRail
-            stage={stage}
-            fileName={fileName}
+          <V2RoomsSidebar
+            rooms={rooms}
+            activeRoomId={activeRoomId}
             collapsed={leftRailCollapsed}
             onCollapse={() => setLeftRailCollapsed((value) => !value)}
-            onStage={setStage}
+            onSelect={(id) => setActiveRoomId(id)}
+            onAddRoom={(type: StudioRoomType, name: string) => {
+              const room = createRoom(type, name);
+              setRooms((current) => [...current, room]);
+              setActiveRoomId(room.id);
+              setStage("upload");
+              setDaeXml(null);
+              setFileName(null);
+              setAssemblies([]);
+              setSelections({});
+              viewerRef.current?.clearModel();
+            }}
+            onRemoveRoom={(id) => {
+              if (rooms.length === 1) {
+                setRooms((current) =>
+                  current.map((room) =>
+                    room.id === id
+                      ? { ...room, daeFileName: null, status: "empty" as const }
+                      : room,
+                  ),
+                );
+                setDaeXml(null);
+                setFileName(null);
+                viewerRef.current?.clearModel();
+              } else {
+                setRooms((current) => current.filter((room) => room.id !== id));
+                if (activeRoomId === id) {
+                  setActiveRoomId(rooms[0].id);
+                }
+              }
+            }}
           />
         ) : null}
 

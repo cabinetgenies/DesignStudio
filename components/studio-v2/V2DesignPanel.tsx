@@ -28,7 +28,7 @@ export default function V2DesignPanel({
   const [openZone, setOpenZone] = useState<V2MaterialZone | null>("perimeter");
 
   return (
-    <aside className="flex w-[340px] shrink-0 flex-col border-l border-zinc-200 bg-white">
+    <aside className="flex h-full w-full flex-col border-l border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-5 py-4">
         <h2 className="text-sm font-semibold text-zinc-900">Design Studio</h2>
         <div className="mt-3 flex gap-4 text-sm">

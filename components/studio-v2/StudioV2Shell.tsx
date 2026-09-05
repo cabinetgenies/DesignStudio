@@ -97,7 +97,7 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
           />
         ) : null}
 
-        <main className="relative min-w-0 flex-1">
+        <main className="relative min-w-0 flex-1 overflow-hidden">
           <V2Viewport
             ref={viewerRef}
             xml={daeXml}
@@ -248,27 +248,29 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
         </main>
 
         {!presenting ? (
-          <V2DesignPanel
-            selections={selections}
-            onSelect={(zone, materialId) => {
-              setSelections((current) => ({
-                ...current,
-                [zone]: materialId,
-              }));
-              viewerRef.current?.setZoneMaterial(zone, materialId);
-            }}
-            onRestore={() => {
-              viewerRef.current?.restoreAllMaterials();
-              setSelections({});
-            }}
-            onHighlight={(zone) => {
-              setHighlightZone(zone);
-              viewerRef.current?.highlightZone(zone);
-            }}
-            highlightZone={highlightZone}
-            onView={(view) => viewerRef.current?.setView(view)}
-            zoneCounts={runtimeSummary?.zoneCounts}
-          />
+          <aside className="relative z-20 hidden h-full w-[340px] shrink-0 lg:block">
+            <V2DesignPanel
+              selections={selections}
+              onSelect={(zone, materialId) => {
+                setSelections((current) => ({
+                  ...current,
+                  [zone]: materialId,
+                }));
+                viewerRef.current?.setZoneMaterial(zone, materialId);
+              }}
+              onRestore={() => {
+                viewerRef.current?.restoreAllMaterials();
+                setSelections({});
+              }}
+              onHighlight={(zone) => {
+                setHighlightZone(zone);
+                viewerRef.current?.highlightZone(zone);
+              }}
+              highlightZone={highlightZone}
+              onView={(view) => viewerRef.current?.setView(view)}
+              zoneCounts={runtimeSummary?.zoneCounts}
+            />
+          </aside>
         ) : null}
       </div>
     </div>

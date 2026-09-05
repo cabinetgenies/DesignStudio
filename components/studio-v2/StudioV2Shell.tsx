@@ -33,6 +33,9 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   const [highlightZone, setHighlightZone] = useState<V2MaterialZone | null>(null);
   const [presenting, setPresenting] = useState(false);
   const [leftRailCollapsed, setLeftRailCollapsed] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<"orbit" | "move">(
+    "orbit",
+  );
   const [runtimeSummary, setRuntimeSummary] =
     useState<V2ClassificationSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -115,7 +118,13 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
               setStatus("Import failed");
             }}
           />
-          <V2ViewportControls />
+          <V2ViewportControls
+            mode={interactionMode}
+            onModeChange={(mode) => {
+              setInteractionMode(mode);
+              viewerRef.current?.setInteractionMode(mode);
+            }}
+          />
 
           {loadError ? (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/80 text-sm text-red-700">

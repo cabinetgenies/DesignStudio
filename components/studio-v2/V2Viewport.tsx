@@ -29,6 +29,7 @@ export interface V2ViewportHandle {
   restoreAllMaterials: () => void;
   applyMaterialSelections: (selections: V2MaterialSelections) => void;
   highlightZone: (zone: V2MaterialZone | null) => void;
+  setInteractionMode: (mode: "orbit" | "move") => void;
 }
 
 const V2Viewport = forwardRef<V2ViewportHandle, V2ViewportProps>(
@@ -101,6 +102,8 @@ const V2Viewport = forwardRef<V2ViewportHandle, V2ViewportProps>(
       applyMaterialSelections: (selections) =>
         viewerRef.current?.applyMaterialSelections(selections),
       highlightZone: (zone) => viewerRef.current?.highlightZone(zone),
+      setInteractionMode: (mode) =>
+        viewerRef.current?.setInteractionMode(mode),
     }),
     [],
   );

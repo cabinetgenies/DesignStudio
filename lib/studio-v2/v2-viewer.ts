@@ -73,11 +73,14 @@ export class V2Viewer {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
+    this.controls.enablePan = true;
+    this.controls.screenSpacePanning = true;
     this.controls.minDistance = 0.1;
     this.controls.maxDistance = 80;
     this.controls.minPolarAngle = 0.1;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.03;
     this.controls.target.set(0, 1, 0);
+    this.setInteractionMode("orbit");
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0xd9d4cc, 1.4));
     const dir = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -289,6 +292,24 @@ export class V2Viewer {
       return;
     }
     this.applyViewPose(view, this.modelRoot);
+  }
+
+  setInteractionMode(mode: "orbit" | "move") {
+    if (mode === "move") {
+      this.controls.mouseButtons = {
+        LEFT: THREE.MOUSE.PAN,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.PAN,
+      };
+      this.container.style.cursor = "grab";
+    } else {
+      this.controls.mouseButtons = {
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.PAN,
+      };
+      this.container.style.cursor = "default";
+    }
   }
 
   private applyViewPose(view: V2View, wrapper: THREE.Group) {

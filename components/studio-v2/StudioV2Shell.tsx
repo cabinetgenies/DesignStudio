@@ -4,8 +4,10 @@ import { useRef, useState } from "react";
 import { preprocessDae, type DaePreprocessResult } from "@/lib/studio-v2/dae-preprocess";
 import type { V2View } from "@/lib/studio-v2/v2-viewer";
 import V2Viewport, { type V2ViewportHandle } from "./V2Viewport";
+import { classifyDaeAssemblies, type V2Assembly } from "@/lib/studio-v2/dae-classify";
+import { V2_MATERIALS, V2_ZONE_LABELS, type V2MaterialZone } from "@/lib/studio-v2/materials";
 
-type Stage = "upload" | "review" | "viewer";
+type Stage = "upload" | "review" | "finishes" | "viewer";
 type Status =
   | "Reading file"
   | "Repairing 2020 export"
@@ -21,6 +23,7 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   const [fileSize, setFileSize] = useState<number | null>(null);
   const [diagnostics, setDiagnostics] = useState<DaePreprocessResult | null>(null);
   const [daeXml, setDaeXml] = useState<string | null>(null);
+  const [assemblies, setAssemblies] = useState<V2Assembly[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const xmlRef = useRef<string | null>(null);
   const viewerRef = useRef<V2ViewportHandle | null>(null);
@@ -43,6 +46,7 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
       xmlRef.current = processed.xml;
       setDaeXml(processed.xml);
       setDiagnostics(processed);
+      setAssemblies(classifyDaeAssemblies(processed.xml));
       setStatus(
         processed.duplicateIdCount > 0 || processed.missingTextures.length > 0
           ? "Kitchen needs review"
@@ -130,6 +134,58 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
                 className="h-10 rounded-md border border-zinc-200 px-4 text-sm text-zinc-700 hover:bg-zinc-50"
               >
                 Replace File
+              </button>
+              <button
+                type="button"
+                onClick={() => setStage("finishes")}
+                disabled={!daeXml}
+                className="h-10 rounded-md bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-40"
+              >
+                Continue to Viewer
+              </button>
+            </div>
+          </div>
+        </main>
+      ) : stage === "finishes" ? (
+        <main className="flex flex-1 items-center justify-center overflow-auto p-8">
+          <div className="w-full max-w-2xl">
+            <h1 className="text-xl font-semibold">Review Finishes</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              Confirm or correct where each imported object belongs.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {(Object.keys(V2_ZONE_LABELS) as V2MaterialZone[]).map((zone) => {
+                const zoneAssemblies = assemblies.filter(
+                  (assembly) => assembly.proposedZone === zone,
+                );
+                return (
+                  <div
+                    key={zone}
+                    className="rounded-xl border border-zinc-200 bg-white p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-zinc-800">
+                        {V2_ZONE_LABELS[zone]}
+                      </p>
+                      <span className="text-xs text-zinc-500">
+                        {zoneAssemblies.length} assemblies
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-zinc-500">
+                      {V2_MATERIALS[zone].length} material
+                      {V2_MATERIALS[zone].length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-6 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setStage("review")}
+                className="h-10 rounded-md border border-zinc-200 px-4 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                Back
               </button>
               <button
                 type="button"

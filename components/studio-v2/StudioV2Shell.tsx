@@ -8,6 +8,7 @@ import { classifyDaeAssemblies, type V2Assembly } from "@/lib/studio-v2/dae-clas
 import { V2_MATERIALS, V2_ZONE_LABELS, type V2MaterialZone } from "@/lib/studio-v2/materials";
 import type { V2MaterialSelections } from "@/lib/studio-v2/v2-viewer";
 import type { V2ClassificationSummary } from "@/lib/studio-v2/runtime-classify";
+import V2WorkflowRail from "./V2WorkflowRail";
 
 type Stage = "upload" | "review" | "finishes" | "viewer";
 type Status =
@@ -239,7 +240,15 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
           </div>
         </main>
       ) : (
-        <main className="flex min-h-0 flex-1 flex-col">
+        <main className="flex min-h-0 flex-1">
+          <V2WorkflowRail
+            stage={stage}
+            fileName={fileName}
+            collapsed={false}
+            onCollapse={() => {}}
+            onStage={setStage}
+          />
+          <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2">
             <button
               type="button"
@@ -414,6 +423,7 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
               </button>
             </div>
           )}
+          </div>
         </main>
       )}
     </div>

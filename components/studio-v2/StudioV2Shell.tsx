@@ -7,8 +7,10 @@ import V2Viewport, { type V2ViewportHandle } from "./V2Viewport";
 import { classifyDaeAssemblies, type V2Assembly } from "@/lib/studio-v2/dae-classify";
 import { V2_MATERIALS, V2_ZONE_LABELS, type V2MaterialZone } from "@/lib/studio-v2/materials";
 import type { V2MaterialSelections } from "@/lib/studio-v2/v2-viewer";
-import type { V2ClassificationSummary } from "@/lib/studio-v2/runtime-classify";
 import V2WorkflowRail from "./V2WorkflowRail";
+import V2StudioHeader from "./V2StudioHeader";
+import V2DesignPanel from "./V2DesignPanel";
+import V2ViewportControls from "./V2ViewportControls";
 
 type Stage = "upload" | "review" | "finishes" | "viewer";
 type Status =
@@ -30,8 +32,7 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   const [selections, setSelections] = useState<V2MaterialSelections>({});
   const [highlightZone, setHighlightZone] = useState<V2MaterialZone | null>(null);
   const [presenting, setPresenting] = useState(false);
-  const [runtimeSummary, setRuntimeSummary] =
-    useState<V2ClassificationSummary | null>(null);
+  const [leftRailCollapsed, setLeftRailCollapsed] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const xmlRef = useRef<string | null>(null);
   const viewerRef = useRef<V2ViewportHandle | null>(null);
@@ -77,48 +78,13 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
 
   return (
     <div className="flex h-screen flex-col bg-[#faf7f2] text-zinc-900">
-      <header className="flex h-20 shrink-0 items-center justify-between border-b border-zinc-200 bg-[#fbfaf8] px-6">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#B98A3A]">
-            Studio
-          </span>
-          <span className="h-5 w-px bg-zinc-200" />
-          <span className="text-sm font-semibold text-zinc-900">
-            {projectName}
-          </span>
-          <span className="text-zinc-400">▾</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
-              status === "Kitchen ready"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-amber-200 bg-amber-50 text-amber-700"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                status === "Kitchen ready" ? "bg-emerald-500" : "bg-amber-500"
-              }`}
-            />
-            {status === "Kitchen ready"
-              ? "Ready to Present"
-              : "Kitchen Needs Review"}
-          </span>
-          <button
-            type="button"
-            className="rounded-md bg-[#B98A3A] px-4 py-2 text-sm font-medium text-white hover:bg-[#a97c31]"
-          >
-            Share with Client
-          </button>
-          <button type="button" className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-white">
-            History
-          </button>
-          <button type="button" className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-white">
-            Menu
-          </button>
-        </div>
-      </header>
+      <V2StudioHeader
+        projectName={projectName}
+        status={status}
+        presenting={presenting}
+        onPresent={() => setPresenting(true)}
+        onExitPresent={() => setPresenting(false)}
+      />
 
       {stage === "upload" ? (
         <main className="flex flex-1 items-center justify-center p-8">
@@ -244,8 +210,8 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
           <V2WorkflowRail
             stage={stage}
             fileName={fileName}
-            collapsed={false}
-            onCollapse={() => {}}
+            collapsed={leftRailCollapsed}
+            onCollapse={() => setLeftRailCollapsed((value) => !value)}
             onStage={setStage}
           />
           <div className="flex min-h-0 flex-1 flex-col">
@@ -279,9 +245,6 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
                 xml={daeXml}
                 assemblies={assemblies}
                 onLoaded={(result) => {
-                  if (result.classification) {
-                    setRuntimeSummary(result.classification);
-                  }
                   setStatus(
                     result.meshCount > 0 ? "Kitchen needs review" : "Kitchen ready",
                   );
@@ -296,110 +259,29 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
                   Viewer failed: {loadError}
                 </div>
               ) : null}
-              <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-                <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur">
-                  <button type="button" className="rounded-full bg-zinc-900 px-3 py-1 text-xs text-white">
-                    Orbit
-                  </button>
-                  <button type="button" className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-400">
-                    Walk
-                  </button>
-                  <button type="button" className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-400">
-                    Compare
-                  </button>
-                  <span className="h-4 w-px bg-zinc-200" />
-                  <span className="text-[11px] text-zinc-400">Morning</span>
-                  <input type="range" disabled className="w-24" />
-                  <span className="text-[11px] text-zinc-400">Evening</span>
-                </div>
-              </div>
+              <V2ViewportControls />
             </div>
             {!presenting ? (
-              <aside className="w-full shrink-0 border-t border-zinc-200 bg-white lg:w-[300px] lg:border-l lg:border-t-0 lg:overflow-y-auto">
-                <div className="p-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-zinc-800">Finishes</h2>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        viewerRef.current?.restoreAllMaterials();
-                        setSelections({});
-                      }}
-                      className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-50"
-                    >
-                      Restore Original
-                    </button>
-                  </div>
-                  <div className="mt-4 space-y-4">
-                    {(Object.keys(V2_ZONE_LABELS) as V2MaterialZone[]).map(
-                      (zone) => {
-                        const runtimeCount =
-                          runtimeSummary?.zoneCounts?.[zone]?.meshes;
-                        const zoneAssemblies = assemblies.filter(
-                          (a) => a.proposedZone === zone,
-                        );
-                        return (
-                          <div key={zone}>
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-zinc-800">
-                                {V2_ZONE_LABELS[zone]}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next =
-                                    highlightZone === zone ? null : zone;
-                                  setHighlightZone(next);
-                                  viewerRef.current?.highlightZone(next);
-                                }}
-                                className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50"
-                              >
-                                {highlightZone === zone
-                                  ? "Stop Highlighting"
-                                  : "Highlight Zone"}
-                              </button>
-                            </div>
-                            <p className="mt-1 text-xs text-zinc-500">
-                              {runtimeCount ?? zoneAssemblies.length}{" "}
-                              {runtimeCount ? "meshes" : "assemblies"} ·{" "}
-                              {selections[zone]
-                                ? V2_MATERIALS[zone].find(
-                                    (m) => m.id === selections[zone],
-                                  )?.label
-                                : "Original"}
-                            </p>
-                            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
-                              {V2_MATERIALS[zone].map((material) => (
-                                <button
-                                  key={material.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelections((current) => ({
-                                      ...current,
-                                      [zone]: material.id,
-                                    }));
-                                    viewerRef.current?.setZoneMaterial(
-                                      zone,
-                                      material.id,
-                                    );
-                                  }}
-                                  title={material.label}
-                                  className={`h-7 w-7 shrink-0 rounded-full border ${
-                                    selections[zone] === material.id
-                                      ? "border-zinc-900 ring-2 ring-zinc-300"
-                                      : "border-black/10 hover:border-zinc-400"
-                                  }`}
-                                  style={{ backgroundColor: material.color }}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      },
-                    )}
-                  </div>
-                </div>
-              </aside>
+              <V2DesignPanel
+                selections={selections}
+                onSelect={(zone, materialId) => {
+                  setSelections((current) => ({
+                    ...current,
+                    [zone]: materialId,
+                  }));
+                  viewerRef.current?.setZoneMaterial(zone, materialId);
+                }}
+                onRestore={() => {
+                  viewerRef.current?.restoreAllMaterials();
+                  setSelections({});
+                }}
+                onHighlight={(zone) => {
+                  setHighlightZone(zone);
+                  viewerRef.current?.highlightZone(zone);
+                }}
+                highlightZone={highlightZone}
+                onView={(view) => viewerRef.current?.setView(view)}
+              />
             ) : null}
           </div>
           {presenting ? (

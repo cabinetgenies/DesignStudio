@@ -14,7 +14,14 @@ import {
   type V2MaterialZone,
 } from "./materials";
 
-export type V2View = "reset" | "front" | "left" | "right" | "top" | "inside";
+export type V2View =
+  | "reset"
+  | "fit"
+  | "front"
+  | "left"
+  | "right"
+  | "top"
+  | "inside";
 
 export interface V2CameraPose {
   position: [number, number, number];
@@ -249,24 +256,7 @@ export class V2Viewer {
   }
 
   private frame(wrapper: THREE.Group) {
-    const bounds = new THREE.Box3().setFromObject(wrapper);
-    if (bounds.isEmpty()) {
-      return;
-    }
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = bounds.getSize(new THREE.Vector3());
-    const radius = Math.max(size.length() * 0.5, 0.001);
-    const floorY = bounds.min.y;
-    const eyeY = floorY + 1.6;
-    const targetY = floorY + 1.25;
-    const distance = radius * 1.8;
-    this.controls.target.set(center.x, targetY, center.z);
-    this.camera.position.set(
-      center.x + distance,
-      eyeY,
-      center.z + distance,
-    );
-    this.controls.update();
+    this.applyViewPose("reset", wrapper);
   }
 
   resetView() {
@@ -280,34 +270,88 @@ export class V2Viewer {
     }
   }
 
+  fitKitchen() {
+    if (this.modelRoot) {
+      this.applyViewPose("fit", this.modelRoot);
+    }
+  }
+
   setView(view: V2View) {
     if (view === "reset") {
       this.resetView();
       return;
     }
+    if (view === "fit") {
+      this.fitKitchen();
+      return;
+    }
     if (!this.modelRoot) {
       return;
     }
-    const bounds = new THREE.Box3().setFromObject(this.modelRoot);
+    this.applyViewPose(view, this.modelRoot);
+  }
+
+  private applyViewPose(view: V2View, wrapper: THREE.Group) {
+    const bounds = new THREE.Box3().setFromObject(wrapper);
     if (bounds.isEmpty()) {
       return;
     }
     const center = bounds.getCenter(new THREE.Vector3());
     const size = bounds.getSize(new THREE.Vector3());
-    const radius = Math.max(size.length() * 0.5, 0.001);
     const floorY = bounds.min.y;
+    const usefulHeight = Math.min(bounds.max.y, floorY + 2.8) - floorY;
+    const fitRadius = Math.max(size.x, size.z, usefulHeight) * 0.5 * 1.15;
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+    const distance = Math.max(
+      fitRadius / Math.tan(vFov / 2),
+      fitRadius / Math.tan(hFov / 2),
+    );
     const eyeY = floorY + 1.6;
-    const target = new THREE.Vector3(center.x, floorY + 1.25, center.z);
-    const distance = radius * 1.8;
+    const targetY = floorY + 1.25;
+    const target = new THREE.Vector3(center.x, targetY, center.z);
 
-    const positions: Record<Exclude<V2View, "reset">, THREE.Vector3> = {
-      front: new THREE.Vector3(center.x, eyeY, center.z + distance),
-      left: new THREE.Vector3(center.x - distance, eyeY, center.z),
-      right: new THREE.Vector3(center.x + distance, eyeY, center.z),
-      top: new THREE.Vector3(center.x, center.y + radius * 2.2, center.z + 0.01),
-      inside: new THREE.Vector3(center.x, eyeY, center.z + radius * 0.7),
-    };
-    this.camera.position.copy(positions[view]);
+    let position: THREE.Vector3;
+    if (view === "top") {
+      position = new THREE.Vector3(
+        center.x,
+        center.y + fitRadius * 2.4,
+        center.z + 0.01,
+      );
+    } else {
+      let dirX = 1;
+      let dirZ = 1;
+      if (view === "front") {
+        dirX = 0;
+        dirZ = 1;
+      } else if (view === "left") {
+        dirX = -1;
+        dirZ = 0;
+      } else if (view === "right") {
+        dirX = 1;
+        dirZ = 0;
+      } else if (view === "inside") {
+        dirX = 0;
+        dirZ = 1;
+      } else if (view === "fit") {
+        dirX = this.camera.position.x - target.x;
+        dirZ = this.camera.position.z - target.z;
+        const len = Math.hypot(dirX, dirZ) || 1;
+        dirX /= len;
+        dirZ /= len;
+      }
+      const dir = new THREE.Vector3(dirX, 0, dirZ).normalize();
+      position = target.clone().addScaledVector(dir, distance);
+      position.y = eyeY;
+      if (view === "inside") {
+        position = target
+          .clone()
+          .addScaledVector(dir, Math.max(distance * 0.55, 0.8));
+        position.y = eyeY;
+      }
+    }
+
+    this.camera.position.copy(position);
     this.controls.target.copy(target);
     this.controls.update();
   }

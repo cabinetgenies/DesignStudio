@@ -142,7 +142,7 @@ export default function V2DesignPanel({
           </div>
         ) : (
           <div className="space-y-2">
-            {(["reset", "front", "left", "right", "top", "inside"] as V2View[]).map(
+            {(["reset", "fit", "front", "left", "right", "top", "inside"] as V2View[]).map(
               (view) => (
                 <button
                   key={view}
@@ -150,7 +150,11 @@ export default function V2DesignPanel({
                   onClick={() => onView(view)}
                   className="w-full rounded-md border border-zinc-200 px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
                 >
-                  {view === "inside" ? "Inside View" : view.charAt(0).toUpperCase() + view.slice(1)}
+                  {view === "inside"
+                    ? "Inside View"
+                    : view === "fit"
+                      ? "Fit Kitchen"
+                      : view.charAt(0).toUpperCase() + view.slice(1)}
                 </button>
               ),
             )}

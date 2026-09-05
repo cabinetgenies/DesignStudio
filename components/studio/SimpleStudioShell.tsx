@@ -24,6 +24,7 @@ interface SimpleStudioShellProps {
   daeUnit: string | null;
   daeUpAxis: string | null;
   missingTextures: string[];
+  findings: string[];
   groupProposals: { zone: MaterialZoneId; count: number }[];
   cutListCount: number;
   readyForDesign: boolean;
@@ -73,6 +74,20 @@ const statusLabels: Record<DaeImportStatus, string> = {
   failed: "Failed",
 };
 
+function completenessLabel(
+  status: DaeImportStatus,
+  loaded: boolean,
+  findingCount: number,
+): string {
+  if (status === "loading") {
+    return "Checking kitchen completeness";
+  }
+  if (status === "ready") {
+    return findingCount > 0 ? "Kitchen needs review" : "Kitchen verified";
+  }
+  return loaded ? "File opened" : "No file";
+}
+
 export default function SimpleStudioShell({
   stage,
   onStage,
@@ -87,6 +102,7 @@ export default function SimpleStudioShell({
   daeUnit,
   daeUpAxis,
   missingTextures,
+  findings,
   groupProposals,
   cutListCount,
   readyForDesign,
@@ -183,7 +199,7 @@ export default function SimpleStudioShell({
               onClick={onOpenAdvanced}
               className="ml-2 rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
             >
-              Correct Model
+              Review Import Issues
             </button>
           </div>
         </header>
@@ -479,6 +495,26 @@ export default function SimpleStudioShell({
                 ) : null}
               </dl>
 
+              <div className="mt-4 rounded-lg border border-zinc-200 bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-zinc-800">
+                    {completenessLabel(daeStatus, daeLoaded, findings.length)}
+                  </p>
+                  {findings.length > 0 ? (
+                    <span className="text-xs text-amber-700">
+                      {findings.length} finding{findings.length === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                </div>
+                {findings.length > 0 ? (
+                  <ul className="mt-2 list-disc pl-5 text-sm text-zinc-700">
+                    {findings.map((finding) => (
+                      <li key={finding}>{finding}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+
               {groupProposals.length > 0 ? (
                 <div className="mt-4 rounded-xl border border-zinc-200 bg-white px-5 py-4">
                   <p className="text-sm font-semibold text-zinc-800">
@@ -533,7 +569,7 @@ export default function SimpleStudioShell({
                   onClick={onOpenAdvanced}
                   className="h-10 rounded-md border border-zinc-200 px-4 text-sm text-zinc-700 hover:bg-zinc-50"
                 >
-                  Correct Model
+                  Review Import Issues
                 </button>
                 <button
                   type="button"

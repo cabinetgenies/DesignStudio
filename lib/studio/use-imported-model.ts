@@ -86,33 +86,39 @@ function floorAndCenter(root: THREE.Object3D): THREE.Group {
 }
 
 function ensureRenderableMaterials(root: THREE.Object3D): void {
+  const fallback = () =>
+    new THREE.MeshStandardMaterial({
+      color: 0x9a948c,
+      roughness: 0.75,
+      metalness: 0,
+    });
+  const isNearBlack = (material: THREE.Material): boolean => {
+    const color = (material as THREE.MeshStandardMaterial).color;
+    return Boolean(color) && color.r + color.g + color.b < 0.06;
+  };
+
   root.traverse((object) => {
     const mesh = object as THREE.Mesh;
     if (!mesh.isMesh) {
       return;
     }
 
-    const fallback = () =>
-      new THREE.MeshStandardMaterial({
-        color: 0x9a948c,
-        roughness: 0.75,
-        metalness: 0,
-      });
-
     if (Array.isArray(mesh.material)) {
-      const valid = mesh.material.filter(
-        (material): material is THREE.Material =>
-          Boolean(material) && "color" in material,
+      const repaired = mesh.material.map(
+        (material) =>
+          !material || !("color" in material) || isNearBlack(material)
+            ? fallback()
+            : material,
       );
-      if (valid.length === 0) {
-        mesh.material = fallback();
-      } else if (valid.length !== mesh.material.length) {
-        mesh.material = valid;
-      }
+      mesh.material = repaired;
       return;
     }
 
-    if (!mesh.material || !("color" in mesh.material)) {
+    if (
+      !mesh.material ||
+      !("color" in mesh.material) ||
+      isNearBlack(mesh.material)
+    ) {
       mesh.material = fallback();
     }
   });

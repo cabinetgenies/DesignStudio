@@ -190,6 +190,7 @@ import {
 import { useStudioPresentation } from "@/lib/studio/presentation-context";
 import { useImportedModel } from "@/lib/studio/use-imported-model";
 import {
+  auditDaeSource,
   classifyDaeName,
   describeEncryptedXml,
   EMPTY_DAE_IMPORT,
@@ -3388,6 +3389,12 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     let metersPerUnit: number | null = null;
     let upAxis: string | null = null;
     let missingTextures: string[] = [];
+    let sourceAudit = {
+      sourceGeometryCount: 0,
+      sourceInstanceCount: 0,
+      sourceNodeCount: 0,
+      duplicateIdCount: 0,
+    };
     try {
       const text = await file.text();
       const parsed = parseDaeUnit(text);
@@ -3395,6 +3402,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       metersPerUnit = parsed.metersPerUnit;
       upAxis = parsed.upAxis;
       missingTextures = extractMissingTextureFiles(text);
+      sourceAudit = auditDaeSource(text);
     } catch {
       // Metadata parsing is best-effort; geometry loading still proceeds.
     }
@@ -3404,6 +3412,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       metersPerUnit,
       upAxis,
       missingTextures,
+      sourceAudit,
     });
     const url = URL.createObjectURL(file);
     setDae((current) => ({
@@ -3428,6 +3437,13 @@ export default function StudioShell({ projectName }: StudioShellProps) {
           ? [`${missingTextures.length} missing texture files`]
           : [],
         groupProposals: [],
+        sourceGeometryCount: sourceAudit.sourceGeometryCount,
+        sourceInstanceCount: sourceAudit.sourceInstanceCount,
+        sourceNodeCount: sourceAudit.sourceNodeCount,
+        duplicateIdCount: sourceAudit.duplicateIdCount,
+        parsedMeshCount: null,
+        visibleMeshCount: null,
+        findings: [],
       },
     }));
     daeMark("descriptor-set", { url, fileName: file.name });
@@ -3660,6 +3676,32 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     };
     visit(model.tree);
 
+    let visibleMeshCount = 0;
+    for (const object of model.nodeMap.values()) {
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh && mesh.visible) {
+        visibleMeshCount += 1;
+      }
+    }
+
+    const findings: string[] = [];
+    const sourceInstances = dae.metadata?.sourceInstanceCount ?? 0;
+    if (sourceInstances > 0 && modelInfo.meshCount < sourceInstances) {
+      findings.push(
+        `${sourceInstances - modelInfo.meshCount} source geometry instances were not represented in the imported scene.`,
+      );
+    }
+    if ((dae.metadata?.duplicateIdCount ?? 0) > 0) {
+      findings.push(
+        `${dae.metadata?.duplicateIdCount} duplicate DAE node IDs were found and may cause ColladaLoader to exclude geometry.`,
+      );
+    }
+    if ((dae.metadata?.missingTextures ?? []).length > 0) {
+      findings.push(
+        `${dae.metadata?.missingTextures.length} texture files were not included.`,
+      );
+    }
+
     if (Object.keys(assignments).length === 0) {
       const nextAssignments: MaterialAssignments = {};
       for (const object of model.nodeMap.values()) {
@@ -3687,6 +3729,9 @@ export default function StudioShell({ projectName }: StudioShellProps) {
             objectCount: modelInfo.groupCount + modelInfo.meshCount,
             meshCount: modelInfo.meshCount,
             materialCount: modelInfo.materialCount,
+            parsedMeshCount: modelInfo.meshCount,
+            visibleMeshCount,
+            findings,
             groupProposals: Array.from(counts.entries()).map(
               ([zone, count]) => ({ zone, count }),
             ),
@@ -3697,7 +3742,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       meshes: modelInfo.meshCount,
       groups: modelInfo.groupCount,
     });
-  }, [assignments, dae.status, model, modelInfo]);
+  }, [assignments, dae.metadata, dae.status, model, modelInfo]);
 
   useEffect(() => {
     if (loadError && dae.status === "loading") {
@@ -3938,6 +3983,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
         daeUnit={dae.metadata?.unit ?? null}
         daeUpAxis={dae.metadata?.upAxis ?? null}
         missingTextures={dae.metadata?.missingTextures ?? []}
+        findings={dae.metadata?.findings ?? []}
         groupProposals={dae.metadata?.groupProposals ?? []}
         cutListCount={cutList.length}
         readyForDesign={isDaeReady(dae) && Boolean(descriptor)}

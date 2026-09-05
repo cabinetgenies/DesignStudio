@@ -40,6 +40,7 @@ const { applyColladaPatches } = await import(
 const { extractMissingTextureFiles, parseDaeUnit } = await import(
   "../lib/studio/dae.ts"
 );
+const { auditDaeSource } = await import("../lib/studio/dae.ts");
 applyColladaPatches();
 
 const synthetic = `<?xml version="1.0"?>
@@ -73,6 +74,13 @@ test("DAE helpers extract unit and missing texture filenames", () => {
     upAxis: "Z_UP",
   });
   assert.deepEqual(extractMissingTextureFiles(synthetic), ["missing.jpg"]);
+});
+
+test("DAE source audit counts geometry instances and duplicate node IDs", () => {
+  const duplicated = `${synthetic}\n<library_nodes><node id="n1"/><node id="n1"/></library_nodes>`;
+  const audit = auditDaeSource(duplicated);
+  assert.ok(audit.sourceGeometryCount >= 1);
+  assert.ok(audit.duplicateIdCount >= 1);
 });
 
 test("ColladaLoader tolerates parameter-less lights and missing textures", () => {

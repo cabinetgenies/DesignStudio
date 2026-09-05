@@ -18,6 +18,13 @@ export interface DaeImportMetadata {
   missingTextures: string[];
   warnings: string[];
   groupProposals: { zone: MaterialZoneId; count: number }[];
+  sourceGeometryCount: number;
+  sourceInstanceCount: number;
+  sourceNodeCount: number;
+  duplicateIdCount: number;
+  parsedMeshCount: number | null;
+  visibleMeshCount: number | null;
+  findings: string[];
 }
 
 export interface DaeImportState {
@@ -153,6 +160,34 @@ export function extractMissingTextureFiles(text: string): string[] {
     }
   }
   return [...files].sort();
+}
+
+export function auditDaeSource(text: string): {
+  sourceGeometryCount: number;
+  sourceInstanceCount: number;
+  sourceNodeCount: number;
+  duplicateIdCount: number;
+} {
+  const sourceGeometryCount = (text.match(/<geometry\s+id=/g) || []).length;
+  const sourceInstanceCount = (text.match(/<instance_geometry\s+/g) || []).length;
+  const sourceNodeCount = (text.match(/<node\s+id=/g) || []).length;
+
+  const ids = new Map<string, number>();
+  for (const match of text.matchAll(/<node\s+id="([^"]+)"/g)) {
+    const id = match[1];
+    ids.set(id, (ids.get(id) ?? 0) + 1);
+  }
+  const duplicateIdCount = [...ids.values()].reduce(
+    (sum, count) => sum + Math.max(count - 1, 0),
+    0,
+  );
+
+  return {
+    sourceGeometryCount,
+    sourceInstanceCount,
+    sourceNodeCount,
+    duplicateIdCount,
+  };
 }
 
 export function parseCutListCsv(text: string): CutListRow[] {

@@ -35,6 +35,17 @@ const V2Viewport = forwardRef<V2ViewportHandle, V2ViewportProps>(
   function V2Viewport({ xml, assemblies, onLoaded, onError }, ref) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<V2Viewer | null>(null);
+  const onLoadedRef = useRef(onLoaded);
+  const onErrorRef = useRef(onError);
+  const lastLoadedXmlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  }, [onLoaded]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -52,15 +63,19 @@ const V2Viewport = forwardRef<V2ViewportHandle, V2ViewportProps>(
     if (!xml || !viewerRef.current) {
       return;
     }
+    if (lastLoadedXmlRef.current === xml) {
+      return;
+    }
+    lastLoadedXmlRef.current = xml;
     try {
       const result = viewerRef.current.loadDae(xml, assemblies);
-      onLoaded?.(result);
+      onLoadedRef.current?.(result);
     } catch (error) {
-      onError?.(
+      onErrorRef.current?.(
         error instanceof Error ? error.message : "The DAE could not be loaded.",
       );
     }
-  }, [xml, assemblies, onLoaded, onError]);
+  }, [xml, assemblies]);
 
   useImperativeHandle(
     ref,

@@ -139,6 +139,10 @@ import SimpleStudioShell from "./SimpleStudioShell";
 import SimpleMaterialPanel from "./SimpleMaterialPanel";
 import SimpleCameraControls from "./SimpleCameraControls";
 import {
+  makeSimpleCameraPose,
+  type SimpleCameraView,
+} from "@/lib/studio/simple-camera";
+import {
   createCabinetInstance,
   getCatalogEntry,
   type CabinetInstance,
@@ -453,6 +457,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
   const [future, setFuture] = useState<StudioSnapshot[]>([]);
 
   const commandRef = useRef<CameraCommand | null>(null);
+  const cameraCommandSeqRef = useRef(0);
   const sceneApiRef = useRef<SceneApi | null>(null);
   const descriptorRef = useRef(descriptor);
   const wallDragRef = useRef<RoomLayout | null>(null);
@@ -870,41 +875,18 @@ export default function StudioShell({ projectName }: StudioShellProps) {
   }
 
   function handleSimpleCamera(
-    view: "reset" | "front" | "left" | "right" | "top" | "inside",
+    view: SimpleCameraView,
   ) {
     if (!modelInfo) {
       return;
     }
-    const center = modelInfo.bounds.center;
-    const radius = Math.max(
-      Math.hypot(
-        modelInfo.bounds.size[0],
-        modelInfo.bounds.size[1],
-        modelInfo.bounds.size[2],
-      ) * 0.5,
-      0.001,
-    );
-    const targetY = center[1] + radius * 0.35;
-    const distance = radius * 1.8;
-    const positions: Record<
-      "reset" | "front" | "left" | "right" | "top" | "inside",
-      [number, number, number]
-    > = {
-      reset: [
-        center[0] + distance,
-        center[1] + radius * 0.9,
-        center[2] + distance,
-      ],
-      front: [center[0], targetY, center[2] + distance],
-      left: [center[0] - distance, targetY, center[2]],
-      right: [center[0] + distance, targetY, center[2]],
-      top: [center[0], center[1] + radius * 2.2, center[2] + 0.01],
-      inside: [center[0], center[1] + radius * 0.35, center[2] + radius * 0.7],
-    };
+    const pose = makeSimpleCameraPose(modelInfo.bounds, view);
+    cameraCommandSeqRef.current += 1;
     commandRef.current = {
+      id: cameraCommandSeqRef.current,
       view: "home",
-      position: positions[view],
-      target: [center[0], targetY, center[2]],
+      position: pose.position,
+      target: pose.target,
       duration: 0.6,
     };
   }

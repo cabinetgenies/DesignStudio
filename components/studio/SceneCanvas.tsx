@@ -297,6 +297,7 @@ function easeInOutCubic(t: number): number {
 
 function CameraRig({ commandRef, focus }: CameraRigProps) {
   const animation = useRef<CameraAnimation | null>(null);
+  const handledCommandRef = useRef<number | CameraCommand | null>(null);
 
   useFrame((state, delta) => {
     const controls = state.controls as unknown as ControlsHandle | null;
@@ -305,7 +306,12 @@ function CameraRig({ commandRef, focus }: CameraRigProps) {
     }
 
     const command = commandRef.current;
-    if (command) {
+    const commandKey = command?.id !== undefined ? command.id : command;
+    if (command && commandKey !== handledCommandRef.current) {
+      handledCommandRef.current = commandKey;
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[SceneCanvas:camera:command]", command.view);
+      }
       commandRef.current = null;
       animation.current = {
         fromPosition: state.camera.position.clone(),
@@ -999,20 +1005,37 @@ function SceneCanvas({
 
   const minDistance = Math.max(focus.radius * 0.05, 0.05);
   const maxDistance = Math.max(focus.radius * 8, 8);
-  const orbitTarget: [number, number, number] = simpleView
-    ? [
-        focus.center[0],
-        focus.center[1] + focus.radius * 0.35,
-        focus.center[2],
-      ]
-    : (demoCameraPresets.home.target as [number, number, number]);
-  const initialCamera: [number, number, number] = simpleView
-    ? [
-        focus.center[0] + focus.radius * 1.8,
-        focus.center[1] + focus.radius * 0.9,
-        focus.center[2] + focus.radius * 1.8,
-      ]
-    : (demoCameraPresets.home.position as [number, number, number]);
+  const orbitTarget = useMemo<[number, number, number]>(
+    () =>
+      simpleView
+        ? [
+            focus.center[0],
+            focus.center[1] + focus.radius * 0.35,
+            focus.center[2],
+          ]
+        : (demoCameraPresets.home.target as [number, number, number]),
+    [simpleView, focus.center, focus.radius],
+  );
+  const initialCamera = useMemo<[number, number, number]>(
+    () =>
+      simpleView
+        ? [
+            focus.center[0] + focus.radius * 1.8,
+            focus.center[1] + focus.radius * 0.9,
+            focus.center[2] + focus.radius * 1.8,
+          ]
+        : (demoCameraPresets.home.position as [number, number, number]),
+    [simpleView, focus.center, focus.radius],
+  );
+  const initialCameraConfig = useMemo(
+    () => ({
+      position: initialCamera,
+      fov: 42,
+      near: 0.1,
+      far: 120,
+    }),
+    [initialCamera],
+  );
 
   return (
     <SceneErrorBoundary>
@@ -1020,12 +1043,7 @@ function SceneCanvas({
         <Canvas
           shadows="soft"
           dpr={[1, 2]}
-          camera={{
-            position: initialCamera,
-            fov: 42,
-            near: 0.1,
-            far: 120,
-          }}
+          camera={initialCameraConfig}
           onCreated={() => setReady(true)}
         >
           <BackgroundColor color={backgroundColors[settings.background]} />

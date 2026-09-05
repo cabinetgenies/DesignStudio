@@ -9,6 +9,7 @@ export interface StudioSettings {
 }
 
 export interface CameraCommand {
+  id?: number;
   view: CameraView;
   position: [number, number, number];
   target: [number, number, number];

@@ -11,6 +11,15 @@ import {
 } from "./model-inspection";
 import type { EditableObjectInfo } from "./editable-objects";
 
+const DEBUG_IMPORT = process.env.NODE_ENV !== "production";
+
+function importMark(stage: string, detail: unknown) {
+  if (!DEBUG_IMPORT) {
+    return;
+  }
+  console.debug(`[useImportedModel:${stage}]`, detail);
+}
+
 interface ImportedModelState {
   url: string;
   scene: THREE.Group | null;
@@ -94,17 +103,36 @@ export function useImportedModel(url: string | null): {
 
   useEffect(() => {
     let cancelled = false;
+    let timedOut = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     if (!url) {
       if (sceneRef.current) {
         disposeObject(sceneRef.current);
         sceneRef.current = null;
       }
+      importMark("reset", { url: null });
       return;
     }
 
     const targetUrl: string = url;
     const useDae = isDaeUrl(targetUrl);
+    importMark("start", { url: targetUrl, useDae });
+
+    timeoutId = setTimeout(() => {
+      if (cancelled || timedOut) {
+        return;
+      }
+      timedOut = true;
+      importMark("timeout", { url: targetUrl });
+      setState({
+        url: targetUrl,
+        scene: null,
+        model: null,
+        editableObjects: [],
+        error: "The DAE import timed out.",
+      });
+    }, 60000);
 
     async function load() {
       if (useDae) {
@@ -138,6 +166,14 @@ export function useImportedModel(url: string | null): {
 
     load()
       .then((loadedScene) => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        if (timedOut) {
+          disposeObject(loadedScene);
+          return;
+        }
         if (cancelled) {
           disposeObject(loadedScene);
           return;
@@ -148,6 +184,10 @@ export function useImportedModel(url: string | null): {
         }
 
         sceneRef.current = loadedScene;
+        importMark("success", {
+          url: targetUrl,
+          meshes: loadedScene.children.length,
+        });
         setState({
           url,
           scene: loadedScene,
@@ -157,9 +197,17 @@ export function useImportedModel(url: string | null): {
         });
       })
       .catch((loadError: unknown) => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        if (timedOut) {
+          return;
+        }
         if (cancelled) {
           return;
         }
+        importMark("error", { url: targetUrl, error: loadError });
         setState({
           url,
           scene: null,
@@ -174,6 +222,9 @@ export function useImportedModel(url: string | null): {
 
     return () => {
       cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [url]);
 

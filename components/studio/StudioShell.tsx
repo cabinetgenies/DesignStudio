@@ -2,6 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+
+const DAE_IMPORT_DEBUG = process.env.NODE_ENV !== "production";
+function daeMark(stage: string, detail: unknown) {
+  if (!DAE_IMPORT_DEBUG) {
+    return;
+  }
+  console.debug(`[StudioShell:dae:${stage}]`, detail);
+}
 import {
   defaultSettings,
   demoCameraPresets,
@@ -3303,6 +3311,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
   }
 
   async function handleDaeFile(file: File) {
+    daeMark("file-selected", { name: file.name, size: file.size });
     const lowerName = file.name.toLowerCase();
     if (lowerName.endsWith(".zip")) {
       setDae((current) => ({
@@ -3354,6 +3363,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       // Metadata parsing is best-effort; geometry loading still proceeds.
     }
 
+    daeMark("metadata-parsed", { unit, metersPerUnit, upAxis });
     const url = URL.createObjectURL(file);
     setDae((current) => ({
       ...current,
@@ -3377,6 +3387,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
         groupProposals: [],
       },
     }));
+    daeMark("descriptor-set", { url, fileName: file.name });
     loadDaeModel(url, file.name, file.size);
   }
 
@@ -3639,7 +3650,22 @@ export default function StudioShell({ projectName }: StudioShellProps) {
           }
         : null,
     }));
+    daeMark("metadata-ready", {
+      meshes: modelInfo.meshCount,
+      groups: modelInfo.groupCount,
+    });
   }, [assignments, dae.status, model, modelInfo]);
+
+  useEffect(() => {
+    if (loadError && dae.status === "loading") {
+      daeMark("load-error", { loadError });
+      setDae((current) => ({
+        ...current,
+        status: "failed",
+        error: loadError,
+      }));
+    }
+  }, [dae.status, loadError]);
 
   const planPageMeta =
     pdfDocument && pageMetaEntry.key === `${pdfDocument.numPages}:${plan.selectedPage}`

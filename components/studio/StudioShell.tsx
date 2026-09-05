@@ -140,6 +140,7 @@ import SimpleMaterialPanel from "./SimpleMaterialPanel";
 import SimpleCameraControls from "./SimpleCameraControls";
 import {
   makeSimpleCameraPose,
+  type SavedCameraPose,
   type SimpleCameraView,
 } from "@/lib/studio/simple-camera";
 import {
@@ -459,6 +460,14 @@ export default function StudioShell({ projectName }: StudioShellProps) {
 
   const commandRef = useRef<CameraCommand | null>(null);
   const cameraCommandSeqRef = useRef(0);
+  const [savedCameraPose, setSavedCameraPose] =
+    useState<SavedCameraPose | null>(null);
+  const savedCameraPoseRef = useRef<SavedCameraPose | null>(null);
+  const initializedCameraIdentityRef = useRef<string | null>(null);
+  const userControllingCameraRef = useRef(false);
+  const [cameraUserActive, setCameraUserActive] = useState(false);
+  const [cameraDebug, setCameraDebug] = useState<Record<string, unknown>>({});
+  const [cameraDebugEnabled, setCameraDebugEnabled] = useState(false);
   const sceneApiRef = useRef<SceneApi | null>(null);
   const descriptorRef = useRef(descriptor);
   const wallDragRef = useRef<RoomLayout | null>(null);
@@ -890,6 +899,36 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       target: pose.target,
       duration: 0.6,
     };
+  }
+
+  function handleCameraPoseChange(pose: SavedCameraPose) {
+    if (userControllingCameraRef.current) {
+      return;
+    }
+    savedCameraPoseRef.current = pose;
+    setSavedCameraPose(pose);
+  }
+
+  function handleCameraUserStart() {
+    userControllingCameraRef.current = true;
+    setCameraUserActive(true);
+  }
+
+  function handleCameraUserEnd() {
+    userControllingCameraRef.current = false;
+    setCameraUserActive(false);
+  }
+
+  function handleCameraWrite(
+    reason: string,
+    detail: Record<string, unknown>,
+  ) {
+    setCameraDebug((current) => ({
+      ...current,
+      lastReason: reason,
+      lastDetail: detail,
+      updatedAt: Date.now(),
+    }));
   }
 
   function handleFrameSelection() {
@@ -3447,6 +3486,10 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       },
     }));
     daeMark("descriptor-set", { url, fileName: file.name });
+    initializedCameraIdentityRef.current = null;
+    savedCameraPoseRef.current = null;
+    setSavedCameraPose(null);
+    userControllingCameraRef.current = false;
     loadDaeModel(url, file.name, file.size);
   }
 
@@ -3491,6 +3534,10 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     setDescriptor(null);
     setDae(EMPTY_DAE_IMPORT);
     setCutList([]);
+    initializedCameraIdentityRef.current = null;
+    savedCameraPoseRef.current = null;
+    setSavedCameraPose(null);
+    userControllingCameraRef.current = false;
     commandRef.current = { view: "home", ...demoCameraPresets.home };
   }
 
@@ -3738,11 +3785,32 @@ export default function StudioShell({ projectName }: StudioShellProps) {
           }
         : null,
     }));
+    const identity = descriptor?.url ?? dae.fileName ?? "none";
+    if (initializedCameraIdentityRef.current !== identity) {
+      initializedCameraIdentityRef.current = identity;
+      const pose = makeSimpleCameraPose(modelInfo.bounds, "reset");
+      const saved: SavedCameraPose = {
+        modelIdentity: identity,
+        position: pose.position,
+        target: pose.target,
+        up: [0, 1, 0],
+      };
+      savedCameraPoseRef.current = saved;
+      setSavedCameraPose(saved);
+    }
     daeMark("metadata-ready", {
       meshes: modelInfo.meshCount,
       groups: modelInfo.groupCount,
     });
-  }, [assignments, dae.metadata, dae.status, model, modelInfo]);
+  }, [
+    assignments,
+    dae.fileName,
+    dae.metadata,
+    dae.status,
+    descriptor?.url,
+    model,
+    modelInfo,
+  ]);
 
   useEffect(() => {
     if (loadError && dae.status === "loading") {
@@ -3754,6 +3822,14 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       }));
     }
   }, [dae.status, loadError]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCameraDebugEnabled(
+        new URLSearchParams(window.location.search).has("cameraDebug"),
+      );
+    }
+  }, []);
 
   const planPageMeta =
     pdfDocument && pageMetaEntry.key === `${pdfDocument.numPages}:${plan.selectedPage}`
@@ -3955,6 +4031,11 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       cabinetRunPreview={cabinetRunProposal?.cabinets ?? null}
       simpleView={experienceMode === "simple"}
       modelIdentity={descriptor?.url ?? "none"}
+      savedPose={savedCameraPose}
+      onPoseChange={handleCameraPoseChange}
+      onUserStart={handleCameraUserStart}
+      onUserEnd={handleCameraUserEnd}
+      onCameraWrite={handleCameraWrite}
     />
   );
 
@@ -3967,6 +4048,22 @@ export default function StudioShell({ projectName }: StudioShellProps) {
   const simpleCameraControls = (
     <SimpleCameraControls onCamera={handleSimpleCamera} />
   );
+  const cameraDebugPanel = cameraDebugEnabled ? (
+    <pre className="absolute left-4 top-4 max-h-48 max-w-[320px] overflow-auto rounded-md border border-zinc-200 bg-white/95 p-3 text-[10px] leading-tight text-zinc-700 shadow-sm">
+      {JSON.stringify(
+        {
+          modelIdentity: descriptor?.url ?? "none",
+          userPositioned: cameraUserActive,
+          position: savedCameraPose?.position ?? null,
+          target: savedCameraPose?.target ?? null,
+          lastWrite: cameraDebug.lastReason ?? null,
+          lastWriteDetail: cameraDebug.lastDetail ?? null,
+        },
+        null,
+        2,
+      )}
+    </pre>
+  ) : null;
 
   if (experienceMode === "simple") {
     return (
@@ -4005,6 +4102,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
         viewport={sceneCanvas}
         materialsPanel={simpleMaterialsPanel}
         cameraControls={simpleCameraControls}
+        debugPanel={cameraDebugPanel}
       />
     );
   }

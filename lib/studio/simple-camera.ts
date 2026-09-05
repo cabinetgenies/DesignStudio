@@ -13,6 +13,11 @@ export interface SimpleCameraPose {
   target: [number, number, number];
 }
 
+export interface SavedCameraPose extends SimpleCameraPose {
+  modelIdentity: string;
+  up: [number, number, number];
+}
+
 export function makeSimpleCameraPose(
   bounds: ModelBounds,
   view: SimpleCameraView,

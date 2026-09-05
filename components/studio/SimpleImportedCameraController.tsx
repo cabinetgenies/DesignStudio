@@ -3,84 +3,91 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import type { CameraCommand, StudioFocus } from "@/lib/studio/types";
+import type { CameraCommand } from "@/lib/studio/types";
+import type { SavedCameraPose } from "@/lib/studio/simple-camera";
 
 interface ControlsHandle {
   target: THREE.Vector3;
   update: () => void;
+  addEventListener: (type: string, listener: (event: Event) => void) => void;
+  removeEventListener: (type: string, listener: (event: Event) => void) => void;
 }
 
 interface SimpleImportedCameraControllerProps {
-  focus: StudioFocus;
   commandRef: { current: CameraCommand | null };
   modelIdentity: string;
-}
-
-const DEBUG = process.env.NODE_ENV !== "production";
-
-function writeMark(reason: string, detail: unknown) {
-  if (!DEBUG) {
-    return;
-  }
-  console.debug(`[SimpleImportedCameraController:write]`, {
-    reason,
-    ...(detail as object),
-  });
+  savedPose: SavedCameraPose | null;
+  onPoseChange: (pose: SavedCameraPose) => void;
+  onUserStart: () => void;
+  onUserEnd: () => void;
+  onWrite: (reason: string, detail: Record<string, unknown>) => void;
 }
 
 export default function SimpleImportedCameraController({
-  focus,
   commandRef,
   modelIdentity,
+  savedPose,
+  onPoseChange,
+  onUserStart,
+  onUserEnd,
+  onWrite,
 }: SimpleImportedCameraControllerProps) {
   const camera = useThree((state) => state.camera);
-  const initializedIdentityRef = useRef<string | null>(null);
+  const controls = useThree((state) => state.controls) as unknown as
+    | ControlsHandle
+    | null;
+  const appliedIdentityRef = useRef<string | null>(null);
   const handledCommandRef = useRef<number | CameraCommand | null>(null);
 
   useEffect(() => {
-    if (DEBUG) {
-      console.debug("[SimpleImportedCameraController:mount]", {
-        modelIdentity,
-      });
+    if (!controls) {
+      return;
     }
-    return () => {
-      if (DEBUG) {
-        console.debug("[SimpleImportedCameraController:unmount]", {
-          modelIdentity,
-        });
-      }
-    };
-  }, [modelIdentity]);
 
-  useFrame((state) => {
-    const controls = state.controls as unknown as ControlsHandle | null;
+    const handleStart = () => {
+      onUserStart();
+    };
+    const handleEnd = () => {
+      onUserEnd();
+      onPoseChange({
+        modelIdentity,
+        position: [
+          camera.position.x,
+          camera.position.y,
+          camera.position.z,
+        ],
+        target: [controls.target.x, controls.target.y, controls.target.z],
+        up: [camera.up.x, camera.up.y, camera.up.z],
+      });
+    };
+
+    controls.addEventListener("start", handleStart);
+    controls.addEventListener("end", handleEnd);
+    return () => {
+      controls.removeEventListener("start", handleStart);
+      controls.removeEventListener("end", handleEnd);
+    };
+  }, [camera, controls, modelIdentity, onPoseChange, onUserEnd, onUserStart]);
+
+  useFrame(() => {
     if (!controls) {
       return;
     }
 
     if (
-      modelIdentity &&
-      initializedIdentityRef.current !== modelIdentity
+      savedPose &&
+      savedPose.modelIdentity === modelIdentity &&
+      appliedIdentityRef.current !== modelIdentity
     ) {
-      initializedIdentityRef.current = modelIdentity;
-      const targetY = focus.center[1] + focus.radius * 0.35;
-      const target = new THREE.Vector3(
-        focus.center[0],
-        targetY,
-        focus.center[2],
-      );
-      const position = new THREE.Vector3(
-        focus.center[0] + focus.radius * 1.8,
-        focus.center[1] + focus.radius * 0.9,
-        focus.center[2] + focus.radius * 1.8,
-      );
-      camera.position.copy(position);
-      controls.target.copy(target);
+      appliedIdentityRef.current = modelIdentity;
+      camera.position.set(...savedPose.position);
+      camera.up.set(...savedPose.up);
+      controls.target.set(...savedPose.target);
       controls.update();
-      writeMark("initialization", {
+      onWrite("restore", {
         modelIdentity,
-        position: position.toArray(),
-        target: target.toArray(),
+        position: savedPose.position,
+        target: savedPose.target,
       });
       return;
     }
@@ -101,7 +108,13 @@ export default function SimpleImportedCameraController({
         command.target[2],
       );
       controls.update();
-      writeMark(`preset:${command.view}`, {
+      onPoseChange({
+        modelIdentity,
+        position: command.position,
+        target: command.target,
+        up: [camera.up.x, camera.up.y, camera.up.z],
+      });
+      onWrite(`preset:${command.view}`, {
         modelIdentity,
         position: command.position,
         target: command.target,

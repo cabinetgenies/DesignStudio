@@ -59,6 +59,7 @@ import type { ViewMode } from "@/lib/studio/transforms";
 import type { EditableObjectInfo } from "@/lib/studio/editable-objects";
 import type { PlanState } from "@/lib/studio/plan";
 import type { PdfDocument } from "@/lib/studio/pdf";
+import type { SavedCameraPose } from "@/lib/studio/simple-camera";
 import {
   buildSnapTargets,
   computeSnap,
@@ -139,6 +140,11 @@ interface SceneCanvasProps {
   cabinetRunPreview: CabinetInstance[] | null;
   simpleView?: boolean;
   modelIdentity?: string;
+  savedPose?: SavedCameraPose | null;
+  onPoseChange?: (pose: SavedCameraPose) => void;
+  onUserStart?: () => void;
+  onUserEnd?: () => void;
+  onCameraWrite?: (reason: string, detail: Record<string, unknown>) => void;
 }
 
 type ControlsHandle = {
@@ -1008,6 +1014,11 @@ function SceneCanvas({
   cabinetRunPreview,
   simpleView = false,
   modelIdentity = "",
+  savedPose = null,
+  onPoseChange = () => {},
+  onUserStart = () => {},
+  onUserEnd = () => {},
+  onCameraWrite = () => {},
 }: SceneCanvasProps) {
   const [ready, setReady] = useState(false);
   const [wallDragging, setWallDragging] = useState(false);
@@ -1192,9 +1203,13 @@ function SceneCanvas({
           />
           {simpleView ? (
             <SimpleImportedCameraController
-              focus={focus}
               commandRef={commandRef}
               modelIdentity={modelIdentity}
+              savedPose={savedPose}
+              onPoseChange={onPoseChange}
+              onUserStart={onUserStart}
+              onUserEnd={onUserEnd}
+              onWrite={onCameraWrite}
             />
           ) : (
             <CameraRig commandRef={commandRef} focus={focus} />

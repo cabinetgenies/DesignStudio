@@ -48,6 +48,7 @@ interface SimpleStudioShellProps {
   viewport?: ReactNode;
   materialsPanel?: ReactNode;
   cameraControls?: ReactNode;
+  debugPanel?: ReactNode;
 }
 
 function formatBytes(bytes: number): string {
@@ -123,6 +124,7 @@ export default function SimpleStudioShell({
   viewport,
   materialsPanel,
   cameraControls,
+  debugPanel,
 }: SimpleStudioShellProps) {
   const daeInputRef = useRef<HTMLInputElement | null>(null);
   const csvInputRef = useRef<HTMLInputElement | null>(null);
@@ -209,6 +211,7 @@ export default function SimpleStudioShell({
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="relative min-h-[420px] flex-1 lg:min-h-0">
             {viewport}
+            {debugPanel}
             {cameraControls}
             {!presenting ? (
               <button

@@ -50,6 +50,7 @@ import DimensionOverlay from "./DimensionOverlay";
 import WallEndpointHandles from "./WallEndpointHandles";
 import SnapGuides from "./SnapGuides";
 import PlanUnderlay from "./PlanUnderlay";
+import SimpleImportedCameraController from "./SimpleImportedCameraController";
 import type { RoomLayout } from "@/lib/studio/room";
 import type { CabinetInstance } from "@/lib/studio/cabinet";
 import { materialsByZone } from "@/lib/studio/materials";
@@ -137,6 +138,7 @@ interface SceneCanvasProps {
   onCabinetRotatePreview: (id: string, rotation: [number, number, number]) => void;
   cabinetRunPreview: CabinetInstance[] | null;
   simpleView?: boolean;
+  modelIdentity?: string;
 }
 
 type ControlsHandle = {
@@ -145,6 +147,20 @@ type ControlsHandle = {
 };
 
 const GRID_ARGS: [number, number] = [40, 40];
+
+const SIMPLE_CAMERA_CONFIG = {
+  position: [0, 6, 9] as [number, number, number],
+  fov: 42,
+  near: 0.1,
+  far: 120,
+};
+
+const ADVANCED_CAMERA_CONFIG = {
+  position: demoCameraPresets.home.position as [number, number, number],
+  fov: 42,
+  near: 0.1,
+  far: 120,
+};
 
 interface SceneErrorBoundaryProps {
   children: ReactNode;
@@ -991,6 +1007,7 @@ function SceneCanvas({
   onCabinetRotatePreview,
   cabinetRunPreview,
   simpleView = false,
+  modelIdentity = "",
 }: SceneCanvasProps) {
   const [ready, setReady] = useState(false);
   const [wallDragging, setWallDragging] = useState(false);
@@ -1007,34 +1024,8 @@ function SceneCanvas({
   const maxDistance = Math.max(focus.radius * 8, 8);
   const orbitTarget = useMemo<[number, number, number]>(
     () =>
-      simpleView
-        ? [
-            focus.center[0],
-            focus.center[1] + focus.radius * 0.35,
-            focus.center[2],
-          ]
-        : (demoCameraPresets.home.target as [number, number, number]),
-    [simpleView, focus.center, focus.radius],
-  );
-  const initialCamera = useMemo<[number, number, number]>(
-    () =>
-      simpleView
-        ? [
-            focus.center[0] + focus.radius * 1.8,
-            focus.center[1] + focus.radius * 0.9,
-            focus.center[2] + focus.radius * 1.8,
-          ]
-        : (demoCameraPresets.home.position as [number, number, number]),
-    [simpleView, focus.center, focus.radius],
-  );
-  const initialCameraConfig = useMemo(
-    () => ({
-      position: initialCamera,
-      fov: 42,
-      near: 0.1,
-      far: 120,
-    }),
-    [initialCamera],
+      (demoCameraPresets.home.target as [number, number, number]),
+    [],
   );
 
   return (
@@ -1043,7 +1034,7 @@ function SceneCanvas({
         <Canvas
           shadows="soft"
           dpr={[1, 2]}
-          camera={initialCameraConfig}
+          camera={simpleView ? SIMPLE_CAMERA_CONFIG : ADVANCED_CAMERA_CONFIG}
           onCreated={() => setReady(true)}
         >
           <BackgroundColor color={backgroundColors[settings.background]} />
@@ -1197,9 +1188,17 @@ function SceneCanvas({
             maxDistance={maxDistance}
             minPolarAngle={0.1}
             maxPolarAngle={Math.PI / 2 - 0.03}
-            target={orbitTarget}
+            {...(simpleView ? {} : { target: orbitTarget })}
           />
-          <CameraRig commandRef={commandRef} focus={focus} />
+          {simpleView ? (
+            <SimpleImportedCameraController
+              focus={focus}
+              commandRef={commandRef}
+              modelIdentity={modelIdentity}
+            />
+          ) : (
+            <CameraRig commandRef={commandRef} focus={focus} />
+          )}
           <ShadowController enabled={settings.showShadows} />
           {!simpleView ? (
             <InteractionHandler

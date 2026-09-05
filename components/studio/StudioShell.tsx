@@ -3954,6 +3954,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
       onCabinetRotatePreview={handleCabinetRotatePreview}
       cabinetRunPreview={cabinetRunProposal?.cabinets ?? null}
       simpleView={experienceMode === "simple"}
+      modelIdentity={descriptor?.url ?? "none"}
     />
   );
 

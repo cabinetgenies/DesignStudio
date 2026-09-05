@@ -256,13 +256,16 @@ export class V2Viewer {
     const center = bounds.getCenter(new THREE.Vector3());
     const size = bounds.getSize(new THREE.Vector3());
     const radius = Math.max(size.length() * 0.5, 0.001);
-    this.controls.target.copy(center).y += radius * 0.35;
+    const floorY = bounds.min.y;
+    const eyeY = floorY + 1.6;
+    const targetY = floorY + 1.25;
+    const distance = radius * 1.8;
+    this.controls.target.set(center.x, targetY, center.z);
     this.camera.position.set(
-      center.x + radius * 1.8,
-      center.y + radius * 0.9,
-      center.z + radius * 1.8,
+      center.x + distance,
+      eyeY,
+      center.z + distance,
     );
-    this.camera.lookAt(this.controls.target);
     this.controls.update();
   }
 
@@ -292,16 +295,17 @@ export class V2Viewer {
     const center = bounds.getCenter(new THREE.Vector3());
     const size = bounds.getSize(new THREE.Vector3());
     const radius = Math.max(size.length() * 0.5, 0.001);
-    const target = center.clone();
-    target.y += radius * 0.35;
+    const floorY = bounds.min.y;
+    const eyeY = floorY + 1.6;
+    const target = new THREE.Vector3(center.x, floorY + 1.25, center.z);
     const distance = radius * 1.8;
 
     const positions: Record<Exclude<V2View, "reset">, THREE.Vector3> = {
-      front: new THREE.Vector3(center.x, target.y, center.z + distance),
-      left: new THREE.Vector3(center.x - distance, target.y, center.z),
-      right: new THREE.Vector3(center.x + distance, target.y, center.z),
+      front: new THREE.Vector3(center.x, eyeY, center.z + distance),
+      left: new THREE.Vector3(center.x - distance, eyeY, center.z),
+      right: new THREE.Vector3(center.x + distance, eyeY, center.z),
       top: new THREE.Vector3(center.x, center.y + radius * 2.2, center.z + 0.01),
-      inside: new THREE.Vector3(center.x, center.y + radius * 0.35, center.z + radius * 0.7),
+      inside: new THREE.Vector3(center.x, eyeY, center.z + radius * 0.7),
     };
     this.camera.position.copy(positions[view]);
     this.controls.target.copy(target);

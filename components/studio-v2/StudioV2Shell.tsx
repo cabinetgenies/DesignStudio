@@ -2,17 +2,16 @@
 
 import { useRef, useState } from "react";
 import { preprocessDae, type DaePreprocessResult } from "@/lib/studio-v2/dae-preprocess";
-import type { V2View } from "@/lib/studio-v2/v2-viewer";
 import V2Viewport, { type V2ViewportHandle } from "./V2Viewport";
 import { classifyDaeAssemblies, type V2Assembly } from "@/lib/studio-v2/dae-classify";
-import { V2_MATERIALS, V2_ZONE_LABELS, type V2MaterialZone } from "@/lib/studio-v2/materials";
 import type { V2MaterialSelections } from "@/lib/studio-v2/v2-viewer";
-import V2WorkflowRail from "./V2WorkflowRail";
+import type { V2MaterialZone } from "@/lib/studio-v2/materials";
+import { V2_ZONE_LABELS } from "@/lib/studio-v2/materials";
+import V2WorkflowRail, { type V2Stage } from "./V2WorkflowRail";
 import V2StudioHeader from "./V2StudioHeader";
 import V2DesignPanel from "./V2DesignPanel";
 import V2ViewportControls from "./V2ViewportControls";
 
-type Stage = "upload" | "review" | "finishes" | "viewer";
 type Status =
   | "Reading file"
   | "Repairing 2020 export"
@@ -22,7 +21,7 @@ type Status =
   | "Import failed";
 
 export default function StudioV2Shell({ projectName }: { projectName: string }) {
-  const [stage, setStage] = useState<Stage>("upload");
+  const [stage, setStage] = useState<V2Stage>("upload");
   const [status, setStatus] = useState<Status>("Reading file");
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileSize, setFileSize] = useState<number | null>(null);
@@ -34,7 +33,6 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   const [presenting, setPresenting] = useState(false);
   const [leftRailCollapsed, setLeftRailCollapsed] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const xmlRef = useRef<string | null>(null);
   const viewerRef = useRef<V2ViewportHandle | null>(null);
 
   async function handleFile(file: File) {
@@ -52,7 +50,6 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
       setStatus("Repairing 2020 export");
       const text = await file.text();
       const processed = preprocessDae(text);
-      xmlRef.current = processed.xml;
       setDaeXml(processed.xml);
       setDiagnostics(processed);
       setAssemblies(classifyDaeAssemblies(processed.xml));
@@ -77,7 +74,7 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[#faf7f2] text-zinc-900">
+    <div className="flex h-screen min-h-0 flex-col bg-[#faf7f2] text-zinc-900">
       <V2StudioHeader
         projectName={projectName}
         status={status}
@@ -86,239 +83,187 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
         onExitPresent={() => setPresenting(false)}
       />
 
-      {stage === "upload" ? (
-        <main className="flex flex-1 items-center justify-center p-8">
-          <div className="w-full max-w-xl text-center">
-            <h1 className="text-xl font-semibold">Upload 2020 DAE</h1>
-            <p className="mt-2 text-sm text-zinc-500">
-              Import a 2020 Design 3D DAE for a clean, stable viewer.
-            </p>
-            <label className="mt-8 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 cursor-pointer hover:border-zinc-400">
-              <span className="text-sm font-medium text-zinc-800">Choose DAE</span>
-              <input
-                type="file"
-                accept=".dae,application/collada+xml,model/vnd.collada+xml,text/xml"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  if (file) handleFile(file);
-                  event.target.value = "";
-                }}
-              />
-            </label>
-            {fileName ? (
-              <p className="mt-3 text-sm text-zinc-600">
-                {fileName} · {fileSize ? formatBytes(fileSize) : ""}
-              </p>
-            ) : null}
-            {loadError ? (
-              <p className="mt-3 text-sm text-red-600">{loadError}</p>
-            ) : null}
-          </div>
-        </main>
-      ) : stage === "review" ? (
-        <main className="flex flex-1 items-center justify-center overflow-auto p-8">
-          <div className="w-full max-w-2xl">
-            <h1 className="text-xl font-semibold">Review import</h1>
-            <p className="mt-1 text-sm text-zinc-500">{status}</p>
-            {diagnostics ? (
-              <dl className="mt-6 divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white px-5 py-1">
-                <Row label="Source geometries" value={diagnostics.sourceGeometryCount} />
-                <Row label="Source instances" value={diagnostics.sourceInstanceCount} />
-                <Row label="Visual nodes" value={diagnostics.sourceNodeCount} />
-                <Row label="Duplicate IDs found" value={diagnostics.duplicateIdCount} />
-                <Row label="Duplicate IDs repaired" value={diagnostics.repairedIds} />
-                <Row label="Missing textures" value={diagnostics.missingTextures.length} />
-              </dl>
-            ) : null}
-            {loadError ? (
-              <p className="mt-4 text-sm text-red-600">{loadError}</p>
-            ) : null}
-            <div className="mt-6 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setStage("upload")}
-                className="h-10 rounded-md border border-zinc-200 px-4 text-sm text-zinc-700 hover:bg-zinc-50"
-              >
-                Replace File
-              </button>
-              <button
-                type="button"
-                onClick={() => setStage("finishes")}
-                disabled={!daeXml}
-                className="h-10 rounded-md bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-40"
-              >
-                Continue to Viewer
-              </button>
-            </div>
-          </div>
-        </main>
-      ) : stage === "finishes" ? (
-        <main className="flex flex-1 items-center justify-center overflow-auto p-8">
-          <div className="w-full max-w-2xl">
-            <h1 className="text-xl font-semibold">Review Finishes</h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              Confirm or correct where each imported object belongs.
-            </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {(Object.keys(V2_ZONE_LABELS) as V2MaterialZone[]).map((zone) => {
-                const zoneAssemblies = assemblies.filter(
-                  (assembly) => assembly.proposedZone === zone,
-                );
-                return (
-                  <div
-                    key={zone}
-                    className="rounded-xl border border-zinc-200 bg-white p-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-zinc-800">
-                        {V2_ZONE_LABELS[zone]}
-                      </p>
-                      <span className="text-xs text-zinc-500">
-                        {zoneAssemblies.length} assemblies
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs text-zinc-500">
-                      {V2_MATERIALS[zone].length} material
-                      {V2_MATERIALS[zone].length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-6 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setStage("review")}
-                className="h-10 rounded-md border border-zinc-200 px-4 text-sm text-zinc-700 hover:bg-zinc-50"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={() => setStage("viewer")}
-                disabled={!daeXml}
-                className="h-10 rounded-md bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-40"
-              >
-                Continue to Viewer
-              </button>
-            </div>
-          </div>
-        </main>
-      ) : (
-        <main className="flex min-h-0 flex-1">
-          {!presenting ? (
-            <V2WorkflowRail
-              stage={stage}
-              fileName={fileName}
-              collapsed={leftRailCollapsed}
-              onCollapse={() => setLeftRailCollapsed((value) => !value)}
-              onStage={setStage}
-            />
-          ) : null}
-          <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-2">
-            <button
-              type="button"
-              onClick={() => setStage("review")}
-              className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
-            >
-              Return to Review
-            </button>
-            <div className="flex flex-wrap gap-1">
-              {(["reset", "front", "left", "right", "top", "inside"] as V2View[]).map(
-                (view) => (
-                  <button
-                    key={view}
-                    type="button"
-                    onClick={() => viewerRef.current?.setView(view)}
-                    className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
-                  >
-                    {view === "inside" ? "Inside View" : view.charAt(0).toUpperCase() + view.slice(1)}
-                  </button>
-                ),
-              )}
-            </div>
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <div className="relative min-h-[360px] flex-1 lg:min-h-0">
-              <V2Viewport
-                ref={viewerRef}
-                xml={daeXml}
-                assemblies={assemblies}
-                onLoaded={(result) => {
-                  setStatus(
-                    result.meshCount > 0 ? "Kitchen needs review" : "Kitchen ready",
-                  );
-                }}
-                onError={(message) => {
-                  setLoadError(message);
-                  setStatus("Import failed");
-                }}
-              />
-              {loadError ? (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/80 text-sm text-red-700">
-                  Viewer failed: {loadError}
-                </div>
-              ) : null}
-              <V2ViewportControls />
-            </div>
-            {!presenting ? (
-              <V2DesignPanel
-                selections={selections}
-                onSelect={(zone, materialId) => {
-                  setSelections((current) => ({
-                    ...current,
-                    [zone]: materialId,
-                  }));
-                  viewerRef.current?.setZoneMaterial(zone, materialId);
-                }}
-                onRestore={() => {
-                  viewerRef.current?.restoreAllMaterials();
-                  setSelections({});
-                }}
-                onHighlight={(zone) => {
-                  setHighlightZone(zone);
-                  viewerRef.current?.highlightZone(zone);
-                }}
-                highlightZone={highlightZone}
-                onView={(view) => viewerRef.current?.setView(view)}
-              />
-            ) : null}
-          </div>
-          {presenting ? (
-            <div className="border-t border-zinc-200 bg-white px-4 py-2 text-right">
-              <button
-                type="button"
-                onClick={() => setPresenting(false)}
-                className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
-              >
-                Exit Presentation
-              </button>
-            </div>
-          ) : (
-            <div className="border-t border-zinc-200 bg-white px-4 py-2 text-right">
-              <button
-                type="button"
-                onClick={() => setPresenting(true)}
-                className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
-              >
-                Present to Client
-              </button>
-            </div>
-          )}
-          </div>
-        </main>
-      )}
-    </div>
-  );
-}
+      <div className="flex min-h-0 flex-1">
+        {!presenting ? (
+          <V2WorkflowRail
+            stage={stage}
+            fileName={fileName}
+            collapsed={leftRailCollapsed}
+            onCollapse={() => setLeftRailCollapsed((value) => !value)}
+            onStage={setStage}
+          />
+        ) : null}
 
-function Row({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex items-center justify-between py-3">
-      <dt className="text-sm text-zinc-600">{label}</dt>
-      <dd className="text-sm font-medium text-zinc-900">{value}</dd>
+        <main className="relative min-w-0 flex-1">
+          <V2Viewport
+            ref={viewerRef}
+            xml={daeXml}
+            assemblies={assemblies}
+            onLoaded={(result) => {
+              setStatus(
+                result.meshCount > 0 ? "Kitchen needs review" : "Kitchen ready",
+              );
+            }}
+            onError={(message) => {
+              setLoadError(message);
+              setStatus("Import failed");
+            }}
+          />
+          <V2ViewportControls />
+
+          {loadError ? (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/80 text-sm text-red-700">
+              Viewer failed: {loadError}
+            </div>
+          ) : null}
+
+          {stage === "upload" && !daeXml ? (
+            <div className="absolute inset-0 flex items-center justify-center p-8">
+              <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <h1 className="text-lg font-semibold text-zinc-900">
+                  Import 2020 Design
+                </h1>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Upload a 2020 Design 3D DAE to begin.
+                </p>
+                <label className="mt-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 px-6 py-10 cursor-pointer hover:border-zinc-400">
+                  <span className="text-sm font-medium text-zinc-800">
+                    Choose DAE File
+                  </span>
+                  <input
+                    type="file"
+                    accept=".dae,application/collada+xml,model/vnd.collada+xml,text/xml"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      if (file) handleFile(file);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+                {fileName ? (
+                  <p className="mt-3 text-sm text-zinc-600">
+                    {fileName} · {fileSize ? formatBytes(fileSize) : ""}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {stage === "review" && daeXml ? (
+            <div className="absolute inset-0 flex items-center justify-center p-8">
+              <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h1 className="text-lg font-semibold text-zinc-900">
+                    Import Review
+                  </h1>
+                  <button
+                    type="button"
+                    onClick={() => setStage("viewer")}
+                    className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+                  >
+                    Close
+                  </button>
+                </div>
+                <p className="mt-1 text-sm text-zinc-500">{status}</p>
+                {diagnostics ? (
+                  <details className="mt-4 rounded-md border border-zinc-200 p-3">
+                    <summary className="cursor-pointer text-sm text-zinc-700">
+                      Import Details
+                    </summary>
+                    <div className="mt-2 space-y-1 text-xs text-zinc-600">
+                      <p>Source geometries: {diagnostics.sourceGeometryCount}</p>
+                      <p>Source instances: {diagnostics.sourceInstanceCount}</p>
+                      <p>Duplicate IDs repaired: {diagnostics.repairedIds}</p>
+                      <p>Missing textures: {diagnostics.missingTextures.length}</p>
+                    </div>
+                  </details>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setStage("finishes")}
+                  className="mt-4 h-10 rounded-md bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800"
+                >
+                  Review Finishes
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {stage === "finishes" && daeXml ? (
+            <div className="absolute inset-0 flex items-center justify-center p-8">
+              <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h1 className="text-lg font-semibold text-zinc-900">
+                    Review Finishes
+                  </h1>
+                  <button
+                    type="button"
+                    onClick={() => setStage("viewer")}
+                    className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {(Object.keys(V2_ZONE_LABELS) as V2MaterialZone[])
+                    .filter((zone) => zone !== "unknown")
+                    .map((zone) => {
+                      const count = assemblies.filter(
+                        (a) => a.proposedZone === zone,
+                      ).length;
+                      return (
+                        <div
+                          key={zone}
+                          className="rounded-md border border-zinc-200 px-3 py-2"
+                        >
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-zinc-800">
+                              {V2_ZONE_LABELS[zone]}
+                            </span>
+                            <span className="text-xs text-zinc-500">
+                              {count > 0 ? `${count} assemblies` : "Not assigned"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStage("viewer")}
+                  className="mt-4 h-10 rounded-md bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800"
+                >
+                  Continue to Design Studio
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </main>
+
+        {!presenting ? (
+          <V2DesignPanel
+            selections={selections}
+            onSelect={(zone, materialId) => {
+              setSelections((current) => ({
+                ...current,
+                [zone]: materialId,
+              }));
+              viewerRef.current?.setZoneMaterial(zone, materialId);
+            }}
+            onRestore={() => {
+              viewerRef.current?.restoreAllMaterials();
+              setSelections({});
+            }}
+            onHighlight={(zone) => {
+              setHighlightZone(zone);
+              viewerRef.current?.highlightZone(zone);
+            }}
+            highlightZone={highlightZone}
+            onView={(view) => viewerRef.current?.setView(view)}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

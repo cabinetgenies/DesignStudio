@@ -1,11 +1,14 @@
 export type MaterialZoneId =
   | "perimeter"
   | "island"
+  | "tall-cabinets"
+  | "hood"
   | "countertops"
   | "backsplash"
   | "floor"
   | "walls"
   | "hardware"
+  | "plumbing"
   | "appliances"
   | "other";
 
@@ -22,11 +25,14 @@ export type ZoneMaterialSelections = Record<MaterialZoneId, string | null>;
 export const MATERIAL_ZONES: MaterialZoneDefinition[] = [
   { id: "perimeter", label: "Perimeter Cabinets", color: "#8aa6c9" },
   { id: "island", label: "Island Cabinets", color: "#7fbfa5" },
+  { id: "tall-cabinets", label: "Tall Cabinets", color: "#b59bc4" },
+  { id: "hood", label: "Hood", color: "#c9c3b5" },
   { id: "countertops", label: "Countertops", color: "#d9c08a" },
   { id: "backsplash", label: "Backsplash", color: "#c39bd3" },
   { id: "floor", label: "Floor", color: "#b98f7a" },
   { id: "walls", label: "Walls", color: "#a7b0b8" },
   { id: "hardware", label: "Hardware", color: "#d1a054" },
+  { id: "plumbing", label: "Plumbing Fixtures", color: "#7fa8b8" },
   { id: "appliances", label: "Appliances", color: "#6f7d8c" },
   { id: "other", label: "Other", color: "#9aa0a6" },
 ];
@@ -40,11 +46,14 @@ export const zoneById: Record<MaterialZoneId, MaterialZoneDefinition> =
 export const emptyZoneSelections: ZoneMaterialSelections = {
   perimeter: null,
   island: null,
+  "tall-cabinets": null,
+  hood: null,
   countertops: null,
   backsplash: null,
   floor: null,
   walls: null,
   hardware: null,
+  plumbing: null,
   appliances: null,
   other: null,
 };
@@ -79,11 +88,14 @@ export function computeZoneCounts(
   const byZone: Record<MaterialZoneId, number> = {
     perimeter: 0,
     island: 0,
+    "tall-cabinets": 0,
+    hood: 0,
     countertops: 0,
     backsplash: 0,
     floor: 0,
     walls: 0,
     hardware: 0,
+    plumbing: 0,
     appliances: 0,
     other: 0,
   };

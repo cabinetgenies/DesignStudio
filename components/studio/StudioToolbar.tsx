@@ -16,6 +16,7 @@ interface StudioToolbarProps {
   onFrameSelection: () => void;
   onFrameRoom: () => void;
   onTogglePresentation: () => void;
+  onReturnToSimple?: () => void;
 }
 
 const views: { key: ViewMode; label: string }[] = [
@@ -64,6 +65,7 @@ export default function StudioToolbar({
   onFrameSelection,
   onFrameRoom,
   onTogglePresentation,
+  onReturnToSimple,
 }: StudioToolbarProps) {
   if (presenting) {
     return (
@@ -99,6 +101,15 @@ export default function StudioToolbar({
         <p className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-900">
           {projectName}
         </p>
+        {onReturnToSimple ? (
+          <button
+            type="button"
+            onClick={onReturnToSimple}
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            Return to Simple Studio
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onTogglePresentation}

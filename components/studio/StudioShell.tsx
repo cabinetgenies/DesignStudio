@@ -127,6 +127,8 @@ import {
   type DetectionToTraceResult,
 } from "@/lib/studio/detection-to-trace";
 import DetectionToTraceReview from "./DetectionToTraceReview";
+import SimpleStudioShell from "./SimpleStudioShell";
+import SimpleMaterialPanel from "./SimpleMaterialPanel";
 import {
   createCabinetInstance,
   getCatalogEntry,
@@ -217,6 +219,12 @@ interface StudioSnapshot {
 }
 
 export default function StudioShell({ projectName }: StudioShellProps) {
+  const [experienceMode, setExperienceMode] = useState<"simple" | "advanced">(
+    "simple",
+  );
+  const [simpleStage, setSimpleStage] = useState<"upload" | "review" | "design">(
+    "upload",
+  );
   const { presenting, setPresenting } = useStudioPresentation();
   const [settings, setSettings] = useState<StudioSettings>(defaultSettings);
   const [descriptor, setDescriptor] = useState<ModelDescriptor | null>(null);
@@ -2224,6 +2232,43 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     setCabinetRunProposal(null);
   }
 
+  function handleReturnToSimple() {
+    handleCancelRunProposal();
+    handleCancelReview();
+    handleCancelDt();
+    handleExitWallReview();
+    handleExitOpeningReview();
+    handleCandidateDragCancel();
+    handleWallCancel();
+    handleUnderlayCancel();
+    handleTraceCancel();
+    setTransformMode(null);
+    setWorkspace("3d");
+    setSelectedWallId(null);
+    setSelectedOpeningId(null);
+    setSelectedKeys([]);
+    setSelectedCabinetIds([]);
+    setTraceMode(null);
+    setJoinSourcePointId(null);
+    setSelectedTracePointId(null);
+    setSelectedTraceWallId(null);
+    setSelectedTraceOpeningId(null);
+    setSelectedWallCandidateId(null);
+    setSelectedOpeningCandidateId(null);
+    setOcrRegionSelecting(false);
+    setAssistedCalibration(null);
+    setPendingAssistedCalibration(null);
+    setPlan((current) => ({ ...current, alignMode: false }));
+    setExperienceMode("simple");
+    if (room.walls.length > 0) {
+      setSimpleStage("design");
+    } else if (plan.fileName) {
+      setSimpleStage("review");
+    } else {
+      setSimpleStage("upload");
+    }
+  }
+
   function handleCandidateDragStart() {
     const candidate = wallDetection?.candidates.find(
       (item) => item.id === selectedWallCandidateId,
@@ -3509,6 +3554,106 @@ export default function StudioShell({ projectName }: StudioShellProps) {
         wallDetection.useTextAware !== useTextAwareWallFilter),
   );
 
+  const sceneCanvas = (
+    <SceneCanvas
+      settings={settings}
+      commandRef={commandRef}
+      focus={focus}
+      gridOrigin={gridOrigin}
+      modelScene={scene}
+      modelSceneRef={sceneRef}
+      hasModel={Boolean(model)}
+      onSelectObject={handleSelectObject}
+      assignments={assignments}
+      zoneSelections={zoneSelections}
+      materialsApplied={materialsApplied}
+      showZones={showZones}
+      selectedKeys={selectedKeys}
+      room={room}
+      previewRoom={previewRoom}
+      reviewing={reviewing}
+      presenting={presenting}
+      viewMode={viewMode}
+      selectedWallId={selectedWallId}
+      endpointTolerance={DEFAULT_ENDPOINT_TOLERANCE}
+      onSelectWall={(id) => setSelectedWallId(id)}
+      onSelectOpening={(id) => setSelectedOpeningId(id)}
+      onWallPreview={handleWallPreview}
+      onWallCommit={handleWallCommit}
+      onWallCancel={handleWallCancel}
+      onWallDragStart={handleWallDragStart}
+      onWallStatus={setWallEditStatus}
+      onWallDraggingChange={() => {}}
+      dimensions={dimensions}
+      activeObjects={activeObjects}
+      onSnapStatus={setSnapStatus}
+      plan={plan}
+      pdfDocument={pdfDocument}
+      onUnderlayDragStart={handleUnderlayDragStart}
+      onUnderlayPreview={handleUnderlayPreview}
+      onUnderlayCommit={handleUnderlayCommit}
+      onUnderlayCancel={handleUnderlayCancel}
+      onUnderlayStatus={setSnapStatus}
+      onUnderlayDraggingChange={() => {}}
+      importTransform={importTransform}
+      transforms={transforms}
+      originals={originals}
+      transformMode={transformMode}
+      snap={snap}
+      wallPlanes={wallPlanes}
+      sceneApiRef={sceneApiRef}
+      onCommitTransforms={handleCommitTransforms}
+      onSnap={showSnap}
+      cabinetInstances={cabinetInstances}
+      selectedCabinetIds={selectedCabinetIds}
+      onSelectCabinet={handleSelectCabinet}
+      onCabinetMoveCommit={handleCabinetMoveCommit}
+      onCabinetMoveStart={handleCabinetMoveStart}
+      onCabinetMovePreview={handleCabinetMovePreview}
+      onCabinetMoveCancel={handleCabinetMoveCancel}
+      onCabinetRotateCommit={handleCabinetRotateCommit}
+      onCabinetRotateStart={handleCabinetRotateStart}
+      onCabinetRotatePreview={handleCabinetRotatePreview}
+      cabinetRunPreview={cabinetRunProposal?.cabinets ?? null}
+    />
+  );
+
+  const simpleMaterialsPanel = (
+    <SimpleMaterialPanel
+      selections={zoneSelections}
+      onSelect={handleSelectMaterial}
+    />
+  );
+
+  if (experienceMode === "simple") {
+    return (
+      <SimpleStudioShell
+        stage={simpleStage}
+        onStage={setSimpleStage}
+        fileName={plan.fileName}
+        fileSize={plan.fileSize}
+        pageCount={plan.pageCount}
+        hasRoom={room.walls.length > 0}
+        cabinetCount={Object.keys(cabinetInstances).length}
+        openingCount={trace ? Object.keys(trace.openings).length : 0}
+        hasCalibration={Boolean(plan.calibration?.confirmed)}
+        onAnalyze={() => {
+          handleAnalyzePage();
+          setSimpleStage("review");
+        }}
+        onOpenAdvanced={() => setExperienceMode("advanced")}
+        onPresent={() => setPresenting(true)}
+        presenting={presenting}
+        onExitPresent={() => setPresenting(false)}
+        onFile={handlePlanFile}
+        onRemove={handlePlanRemove}
+        pdfError={pdfError}
+        viewport={sceneCanvas}
+        materialsPanel={simpleMaterialsPanel}
+      />
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
       <StudioToolbar
@@ -3536,6 +3681,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
           }
           setPresenting(!presenting);
         }}
+        onReturnToSimple={handleReturnToSimple}
       />
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">

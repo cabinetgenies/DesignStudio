@@ -58,12 +58,19 @@ const hardwareMaterials: StudioMaterial[] = [
 
 export const materialsByZone: Record<MaterialZoneId, StudioMaterial[]> = {
   perimeter: cabinetMaterials,
+  "tall-cabinets": cabinetMaterials,
+  hood: [
+    { id: "stainless", label: "Stainless", color: "#c9c9c9", roughness: 0.25, metalness: 1 },
+    { id: "black-hood", label: "Black", color: "#2b2b2b", roughness: 0.35, metalness: 0.8 },
+    { id: "white-hood", label: "White", color: "#f0f0f0", roughness: 0.4, metalness: 0.3 },
+  ],
   island: cabinetMaterials,
   countertops: countertopMaterials,
   backsplash: backsplashMaterials,
   floor: floorMaterials,
   walls: wallMaterials,
   hardware: hardwareMaterials,
+  plumbing: hardwareMaterials,
   appliances: [],
   other: [],
 };

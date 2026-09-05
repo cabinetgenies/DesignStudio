@@ -228,7 +228,7 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
             </div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <div className="min-h-[360px] flex-1 lg:min-h-0">
+            <div className="relative min-h-[360px] flex-1 lg:min-h-0">
               <V2Viewport
                 ref={viewerRef}
                 xml={daeXml}
@@ -243,6 +243,11 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
                   setStatus("Import failed");
                 }}
               />
+              {loadError ? (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/80 text-sm text-red-700">
+                  Viewer failed: {loadError}
+                </div>
+              ) : null}
             </div>
             {!presenting ? (
               <aside className="w-full shrink-0 border-t border-zinc-200 bg-white lg:w-[300px] lg:border-l lg:border-t-0 lg:overflow-y-auto">

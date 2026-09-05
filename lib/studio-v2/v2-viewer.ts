@@ -80,8 +80,16 @@ export class V2Viewer {
   }
 
   private resize() {
-    const width = this.container.clientWidth || 1;
-    const height = this.container.clientHeight || 1;
+    const width =
+      this.container.clientWidth ||
+      this.container.parentElement?.clientWidth ||
+      window.innerWidth ||
+      1;
+    const height =
+      this.container.clientHeight ||
+      this.container.parentElement?.clientHeight ||
+      window.innerHeight ||
+      1;
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();

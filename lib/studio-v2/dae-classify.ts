@@ -87,10 +87,18 @@ function classifyNode(
   path: string,
 ): { zone: V2MaterialZone | null; confidence: number; reasons: string[] } {
   const lower = name.toLowerCase();
-  const pathLower = path.toLowerCase();
+  void path;
 
-  if (/wall group|surface-wall|^wall$/i.test(lower) || pathLower.includes("/wall")) {
-    return { zone: "walls", confidence: 0.7, reasons: ["Wall name or path"] };
+  if (/^(scene|root|wall group|design|room|group|layer)$/i.test(lower)) {
+    return { zone: null, confidence: 0, reasons: ["Generic container"] };
+  }
+
+  if (
+    lower === "wall" ||
+    lower === "surface-wall" ||
+    lower.startsWith("wall-")
+  ) {
+    return { zone: "walls", confidence: 0.7, reasons: ["Wall name"] };
   }
   if (/floor/i.test(lower)) {
     return { zone: "floor", confidence: 0.55, reasons: ["Floor name"] };

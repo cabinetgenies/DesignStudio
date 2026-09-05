@@ -90,7 +90,7 @@ const V2Viewport = forwardRef<V2ViewportHandle, V2ViewportProps>(
     [],
   );
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  return <div ref={containerRef} className="absolute inset-0" />;
   },
 );
 

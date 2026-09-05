@@ -12,6 +12,8 @@ export default function V2RoomsSidebar({
   onSelect,
   onAddRoom,
   onRemoveRoom,
+  onRenameRoom,
+  onDeleteRoom,
 }: {
   rooms: StudioRoom[];
   activeRoomId: string | null;
@@ -20,8 +22,12 @@ export default function V2RoomsSidebar({
   onSelect: (id: string) => void;
   onAddRoom: (type: StudioRoomType, name: string) => void;
   onRemoveRoom: (id: string) => void;
+  onRenameRoom: (id: string, name: string) => void;
+  onDeleteRoom: (id: string) => void;
 }) {
   const [addOpen, setAddOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<StudioRoomType>("kitchen");
 
@@ -120,6 +126,45 @@ export default function V2RoomsSidebar({
                   {room.daeFileName ?? "Empty room"}
                 </div>
               ) : null}
+              {!collapsed && active && editingId === room.id ? (
+                <div className="mt-1 flex gap-1">
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full rounded border border-zinc-200 px-1 py-0.5 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = editName.trim();
+                      if (trimmed) onRenameRoom(room.id, trimmed);
+                      setEditingId(null);
+                    }}
+                    className="rounded bg-zinc-900 px-1.5 text-xs text-white"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                    className="rounded border border-zinc-200 px-1.5 text-xs text-zinc-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
+              {!collapsed && active ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingId(room.id);
+                    setEditName(room.name);
+                  }}
+                  className="mt-1 text-xs text-zinc-500 hover:underline"
+                >
+                  Rename
+                </button>
+              ) : null}
               {!collapsed && active && room.daeFileName ? (
                 <button
                   type="button"
@@ -127,6 +172,15 @@ export default function V2RoomsSidebar({
                   className="mt-1 text-xs text-red-600 hover:underline"
                 >
                   Remove model
+                </button>
+              ) : null}
+              {!collapsed && active ? (
+                <button
+                  type="button"
+                  onClick={() => onDeleteRoom(room.id)}
+                  className="mt-1 text-xs text-red-600 hover:underline"
+                >
+                  Delete Room
                 </button>
               ) : null}
             </div>

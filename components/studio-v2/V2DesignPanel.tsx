@@ -5,8 +5,6 @@ import { V2_MATERIALS, V2_ZONE_LABELS, type V2MaterialZone } from "@/lib/studio-
 import type { V2MaterialSelections } from "@/lib/studio-v2/v2-viewer";
 import type { V2View } from "@/lib/studio-v2/v2-viewer";
 
-type Tab = "materials" | "lighting" | "view";
-
 export default function V2DesignPanel({
   selections,
   onSelect,
@@ -15,6 +13,8 @@ export default function V2DesignPanel({
   highlightZone,
   onView,
   zoneCounts,
+  activeTab,
+  onActiveTabChange,
 }: {
   selections: V2MaterialSelections;
   onSelect: (zone: V2MaterialZone, materialId: string) => void;
@@ -23,8 +23,9 @@ export default function V2DesignPanel({
   highlightZone: V2MaterialZone | null;
   onView: (view: V2View) => void;
   zoneCounts?: Partial<Record<V2MaterialZone, number>>;
+  activeTab: "materials" | "lighting" | "view";
+  onActiveTabChange: (tab: "materials" | "lighting" | "view") => void;
 }) {
-  const [tab, setTab] = useState<Tab>("materials");
   const [openZone, setOpenZone] = useState<V2MaterialZone | null>("perimeter");
 
   return (
@@ -32,13 +33,13 @@ export default function V2DesignPanel({
       <div className="border-b border-zinc-200 px-5 py-4">
         <h2 className="text-sm font-semibold text-zinc-900">Design Studio</h2>
         <div className="mt-3 flex gap-4 text-sm">
-          {(["materials", "lighting", "view"] as Tab[]).map((item) => (
+          {(["materials", "lighting", "view"] as const).map((item) => (
             <button
               key={item}
               type="button"
-              onClick={() => setTab(item)}
+              onClick={() => onActiveTabChange(item)}
               className={`pb-1 capitalize ${
-                tab === item
+                activeTab === item
                   ? "border-b-2 border-[#B98A3A] text-zinc-900"
                   : "text-zinc-500 hover:text-zinc-800"
               }`}
@@ -50,7 +51,7 @@ export default function V2DesignPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-5">
-        {tab === "materials" ? (
+        {activeTab === "materials" ? (
           <div className="space-y-1">
             {(Object.keys(V2_ZONE_LABELS) as V2MaterialZone[])
               .filter((zone) => zone !== "unknown")
@@ -126,7 +127,7 @@ export default function V2DesignPanel({
               Restore Original
             </button>
           </div>
-        ) : tab === "lighting" ? (
+        ) : activeTab === "lighting" ? (
           <div>
             <p className="text-xs uppercase tracking-wide text-zinc-400">Lighting</p>
             <div className="mt-4 space-y-4 text-sm">

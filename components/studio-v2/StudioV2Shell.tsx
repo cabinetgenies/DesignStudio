@@ -8,10 +8,15 @@ import V2DesignPanel from "./V2DesignPanel";
 import V2ViewportControls from "./V2ViewportControls";
 import V2RoomsSidebar from "./V2RoomsSidebar";
 import { createRoom, type StudioRoom, type StudioRoomType } from "@/lib/studio-v2/rooms";
-import type { V2MaterialSelections, V2CameraPose } from "@/lib/studio-v2/v2-viewer";
+import type { V2MaterialSelections } from "@/lib/studio-v2/v2-viewer";
 import type { V2MaterialZone } from "@/lib/studio-v2/materials";
+import {
+  EMPTY_ZONE_COUNTS,
+  emptySession,
+  type RoomSessionState,
+  type V2PanelTab,
+} from "@/lib/studio-v2/room-session";
 
-type PanelTab = "materials" | "lighting" | "view";
 type Status =
   | "Reading file"
   | "Repairing 2020 export"
@@ -20,40 +25,6 @@ type Status =
   | "Kitchen ready"
   | "Import failed";
 
-interface RoomSessionState {
-  repairedDaeXml: string | null;
-  materialSelections: V2MaterialSelections;
-  runtimeZoneCounts: Record<V2MaterialZone, number>;
-  cameraPose: V2CameraPose | null;
-  activePanelTab: PanelTab;
-}
-
-const EMPTY_ZONE_COUNTS = Object.fromEntries(
-  [
-    "perimeter",
-    "island",
-    "tall",
-    "hood",
-    "countertops",
-    "backsplash",
-    "floor",
-    "walls",
-    "hardware",
-    "plumbing",
-    "appliances",
-    "unknown",
-  ].map((zone) => [zone, 0]),
-) as Record<V2MaterialZone, number>;
-
-function emptySession(): RoomSessionState {
-  return {
-    repairedDaeXml: null,
-    materialSelections: {},
-    runtimeZoneCounts: { ...EMPTY_ZONE_COUNTS },
-    cameraPose: null,
-    activePanelTab: "materials",
-  };
-}
 
 export default function StudioV2Shell({ projectName }: { projectName: string }) {
   const initialRoom = createRoom("kitchen");
@@ -70,7 +41,7 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   const [presenting, setPresenting] = useState(false);
   const [leftRailCollapsed, setLeftRailCollapsed] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [panelTab, setPanelTab] = useState<PanelTab>("materials");
+  const [panelTab, setPanelTab] = useState<V2PanelTab>("materials");
   const [interactionMode, setInteractionMode] = useState<"orbit" | "move">(
     "orbit",
   );
@@ -226,6 +197,39 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
                 }
               }
             }}
+            onRenameRoom={(id, name) => {
+              setRooms((current) =>
+                current.map((room) =>
+                  room.id === id ? { ...room, name } : room,
+                ),
+              );
+            }}
+            onDeleteRoom={(id) => {
+              const target = rooms.find((room) => room.id === id);
+              const message = target?.daeFileName
+                ? `Delete "${target.name}" and its loaded design?`
+                : `Delete "${target?.name ?? "room"}"?`;
+              if (!window.confirm(message)) return;
+              viewerRef.current?.removeRoomModel(id);
+              roomSessionsRef.current.delete(id);
+              const remaining = rooms.filter((room) => room.id !== id);
+              if (remaining.length === 0) {
+                const replacement = createRoom("kitchen");
+                setRooms([replacement]);
+                setActiveRoomId(replacement.id);
+                ensureSession(replacement.id);
+                setSelections({});
+                setZoneCounts({ ...EMPTY_ZONE_COUNTS });
+                setFileName(null);
+                viewerRef.current?.showRoom(replacement.id);
+              } else {
+                setRooms(remaining);
+                if (activeRoomId === id) {
+                  const next = remaining[0];
+                  selectRoom(next.id);
+                }
+              }
+            }}
           />
         ) : null}
 
@@ -305,6 +309,12 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
               highlightZone={highlightZone}
               onView={(view) => viewerRef.current?.setView(view)}
               zoneCounts={zoneCounts}
+              activeTab={panelTab}
+              onActiveTabChange={(tab) => {
+                setPanelTab(tab);
+                const session = ensureSession(activeRoomId);
+                session.activePanelTab = tab;
+              }}
             />
           </aside>
         ) : null}

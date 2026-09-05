@@ -100,7 +100,10 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
       const processed = preprocessDae(text);
       const session = ensureSession(activeRoomId);
       session.repairedDaeXml = processed.xml;
-      const result = viewerRef.current?.loadRoomDae(activeRoomId, processed.xml);
+      const result = await viewerRef.current?.loadRoomDae(
+        activeRoomId,
+        processed.xml,
+      );
       const counts = result?.classification?.zoneCounts;
       if (counts) {
         const next: Record<V2MaterialZone, number> = { ...EMPTY_ZONE_COUNTS };

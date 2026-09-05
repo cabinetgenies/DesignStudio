@@ -30,7 +30,7 @@ export interface V2ViewportHandle {
   applyMaterialSelections: (selections: V2MaterialSelections) => void;
   highlightZone: (zone: V2MaterialZone | null) => void;
   setInteractionMode: (mode: "orbit" | "move") => void;
-  loadRoomDae: (roomId: string, xml: string) => V2LoadResult;
+  loadRoomDae: (roomId: string, xml: string) => Promise<V2LoadResult>;
   showRoom: (roomId: string) => void;
   removeRoomModel: (roomId: string) => void;
   setCameraPose: (pose: V2CameraPose) => void;
@@ -108,9 +108,9 @@ const V2Viewport = forwardRef<V2ViewportHandle, V2ViewportProps>(
       highlightZone: (zone) => viewerRef.current?.highlightZone(zone),
       setInteractionMode: (mode) =>
         viewerRef.current?.setInteractionMode(mode),
-      loadRoomDae: (roomId, xml) => {
+      loadRoomDae: async (roomId, xml) => {
         if (!viewerRef.current) throw new Error("Viewer is not ready.");
-        return viewerRef.current.loadRoomDae(roomId, xml);
+        return await viewerRef.current.loadRoomDae(roomId, xml);
       },
       showRoom: (roomId) => viewerRef.current?.showRoom(roomId),
       removeRoomModel: (roomId) => viewerRef.current?.removeRoomModel(roomId),

@@ -13,6 +13,7 @@ import {
   type V2Material,
   type V2MaterialZone,
 } from "./materials";
+import { RoomModelRegistry } from "./room-model-registry";
 
 export type V2View =
   | "reset"
@@ -53,8 +54,7 @@ export class V2Viewer {
   private overrideClones = new Map<string, THREE.Material | THREE.Material[]>();
   private zoneMeshes = new Map<V2MaterialZone, THREE.Mesh[]>();
   private classificationSummary: V2ClassificationSummary | null = null;
-  private roomRoots = new Map<string, THREE.Group>();
-  private activeRoomId: string | null = null;
+  private roomRegistry: RoomModelRegistry<THREE.Group>;
 
   constructor(container: HTMLElement) {
     applyColladaPatches();
@@ -91,6 +91,12 @@ export class V2Viewer {
     this.scene.add(dir);
 
     this.loader = new ColladaLoader();
+    this.roomRegistry = new RoomModelRegistry<THREE.Group>({
+      parse: (xml) => this.parseRoomDae(xml),
+      attach: (root) => this.scene.add(root),
+      detach: (root) => this.scene.remove(root),
+      dispose: (root) => disposeObject(root),
+    });
 
     this.resize();
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -153,13 +159,40 @@ export class V2Viewer {
     return { ...counts, classification: this.classificationSummary ?? undefined };
   }
 
-  loadRoomDae(roomId: string, xml: string): V2LoadResult {
+  async loadRoomDae(roomId: string, xml: string): Promise<V2LoadResult> {
+    const root = await this.roomRegistry.load(roomId, xml);
+    this.roomRegistry.show(roomId);
+    this.modelRoot = root;
+    this.frame(root);
+    return countMeshes(root);
+  }
+
+  showRoom(roomId: string) {
+    const root = this.roomRegistry.show(roomId);
+    this.modelRoot = root;
+    if (root) {
+      this.frame(root);
+    }
+  }
+
+  removeRoomModel(roomId: string) {
+    this.roomRegistry.remove(roomId);
+    if (this.modelRoot && !this.roomRegistry.diagnostics().cachedRoomIds.includes(roomId)) {
+      this.modelRoot = null;
+    }
+  }
+
+  setCameraPose(pose: V2CameraPose) {
+    this.camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
+    this.controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
+    this.controls.update();
+  }
+
+  private async parseRoomDae(xml: string): Promise<THREE.Group> {
     const collada = this.loader.parse(xml, "");
     if (!collada || !collada.scene) {
       throw new Error("The DAE file did not produce a scene.");
     }
-
-    this.disposeRoomRoot(roomId);
     const imported = collada.scene;
     imported.traverse((object) => {
       const mesh = object as THREE.Mesh;
@@ -170,64 +203,11 @@ export class V2Viewer {
       }
     });
     const wrapper = new THREE.Group();
-    wrapper.name = `Room ${roomId}`;
+    wrapper.name = "Room model";
     wrapper.add(imported);
     wrapper.updateMatrixWorld(true);
     this.normalizeWrapper(wrapper);
-    this.roomRoots.set(roomId, wrapper);
-    this.activeRoomId = roomId;
-    this.attachRoom(wrapper);
-    return countMeshes(wrapper);
-  }
-
-  showRoom(roomId: string) {
-    if (this.activeRoomId === roomId && this.modelRoot) {
-      return;
-    }
-    this.detachActiveRoom();
-    const root = this.roomRoots.get(roomId) ?? null;
-    if (root) {
-      this.activeRoomId = roomId;
-      this.attachRoom(root);
-    } else {
-      this.activeRoomId = roomId;
-      this.modelRoot = null;
-    }
-  }
-
-  removeRoomModel(roomId: string) {
-    if (this.activeRoomId === roomId) {
-      this.detachActiveRoom();
-    }
-    this.disposeRoomRoot(roomId);
-  }
-
-  setCameraPose(pose: V2CameraPose) {
-    this.camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
-    this.controls.target.set(pose.target[0], pose.target[1], pose.target[2]);
-    this.controls.update();
-  }
-
-  private attachRoom(root: THREE.Group) {
-    this.modelRoot = root;
-    this.scene.add(root);
-    this.frame(root);
-  }
-
-  private detachActiveRoom() {
-    if (this.modelRoot) {
-      this.scene.remove(this.modelRoot);
-    }
-    this.modelRoot = null;
-  }
-
-  private disposeRoomRoot(roomId: string) {
-    const root = this.roomRoots.get(roomId);
-    if (root) {
-      this.scene.remove(root);
-      disposeObject(root);
-      this.roomRoots.delete(roomId);
-    }
+    return wrapper;
   }
 
   private classifyScene(root: THREE.Object3D) {

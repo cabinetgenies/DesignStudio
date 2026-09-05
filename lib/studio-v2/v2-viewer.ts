@@ -4,6 +4,11 @@ import { ColladaLoader } from "three/examples/jsm/loaders/ColladaLoader.js";
 import { applyColladaPatches } from "@/lib/studio/collada-patches";
 import type { V2Assembly } from "./dae-classify";
 import {
+  classifyRuntimeMeshes,
+  type V2ClassificationSummary,
+  type RuntimeMeshEvidence,
+} from "./runtime-classify";
+import {
   getV2Material,
   type V2Material,
   type V2MaterialZone,
@@ -20,6 +25,7 @@ export interface V2LoadResult {
   meshCount: number;
   visibleMeshCount: number;
   dimensions: [number, number, number];
+  classification?: V2ClassificationSummary;
 }
 
 export type V2MaterialSelections = Partial<Record<V2MaterialZone, string>>;
@@ -39,6 +45,7 @@ export class V2Viewer {
   private originalMaterials = new Map<string, THREE.Material | THREE.Material[]>();
   private overrideClones = new Map<string, THREE.Material | THREE.Material[]>();
   private zoneMeshes = new Map<V2MaterialZone, THREE.Mesh[]>();
+  private classificationSummary: V2ClassificationSummary | null = null;
 
   constructor(container: HTMLElement) {
     applyColladaPatches();
@@ -102,6 +109,7 @@ export class V2Viewer {
   };
 
   loadDae(xml: string, assemblies: V2Assembly[] = []): V2LoadResult {
+    void assemblies;
     const collada = this.loader.parse(xml, "");
     if (!collada || !collada.scene) {
       throw new Error("The DAE file did not produce a scene.");
@@ -126,25 +134,22 @@ export class V2Viewer {
 
     this.modelRoot = wrapper;
     this.scene.add(wrapper);
-    this.buildSceneIndex(wrapper, assemblies);
+    this.classifyScene(wrapper);
     this.frame(wrapper);
 
     const counts = countMeshes(wrapper);
-    return counts;
+    return { ...counts, classification: this.classificationSummary ?? undefined };
   }
 
-  private buildSceneIndex(root: THREE.Object3D, assemblies: V2Assembly[]) {
+  private classifyScene(root: THREE.Object3D) {
     this.originalMaterials.clear();
     this.overrideClones.clear();
     this.zoneMeshes.clear();
 
-    const zoneByName = new Map<string, V2MaterialZone>();
-    for (const assembly of assemblies) {
-      if (assembly.proposedZone) {
-        zoneByName.set(assembly.name, assembly.proposedZone);
-      }
-    }
+    const evidence: RuntimeMeshEvidence[] = [];
+    const meshById = new Map<string, THREE.Mesh>();
 
+    root.updateMatrixWorld(true);
     root.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (!mesh.isMesh) {
@@ -155,26 +160,50 @@ export class V2Viewer {
         key,
         Array.isArray(mesh.material) ? mesh.material.slice() : mesh.material,
       );
+      meshById.set(key, mesh);
 
-      let zone: V2MaterialZone | null = null;
-      let parent: THREE.Object3D | null = mesh.parent;
-      while (parent && !zone) {
-        const match = zoneByName.get(parent.name);
-        if (match) {
-          zone = match;
-        } else {
-          parent = parent.parent;
-        }
-      }
-      if (!zone) {
-        zone = zoneByName.get(mesh.name) ?? null;
-      }
-      if (zone) {
-        const list = this.zoneMeshes.get(zone) ?? [];
-        list.push(mesh);
-        this.zoneMeshes.set(zone, list);
-      }
+      const box = new THREE.Box3().setFromObject(mesh);
+      const size = box.isEmpty()
+        ? new THREE.Vector3(0.1, 0.1, 0.1)
+        : box.getSize(new THREE.Vector3());
+      const center = box.isEmpty()
+        ? new THREE.Vector3(0, 0.1, 0)
+        : box.getCenter(new THREE.Vector3());
+      const material = Array.isArray(mesh.material)
+        ? mesh.material[0]
+        : mesh.material;
+      const standard = material as THREE.MeshStandardMaterial | null;
+      const color = standard?.color
+        ? `#${standard.color.getHexString()}`
+        : null;
+      evidence.push({
+        id: key,
+        name: mesh.name || mesh.parent?.name || mesh.type,
+        parentName: mesh.parent?.name || "",
+        dimensions: [size.x, size.y, size.z],
+        center: [center.x, center.y, center.z],
+        heightAboveFloor: Math.max(center.y - size.y / 2, 0),
+        volume: size.x * size.y * size.z,
+        color,
+        metalness: standard?.metalness ?? 0,
+        transparent: Boolean(material?.transparent),
+      });
     });
+
+    this.classificationSummary = classifyRuntimeMeshes(evidence);
+    for (const target of this.classificationSummary.targets) {
+      const mesh = meshById.get(target.meshId);
+      if (!mesh || !target.zone) {
+        continue;
+      }
+      const list = this.zoneMeshes.get(target.zone) ?? [];
+      list.push(mesh);
+      this.zoneMeshes.set(target.zone, list);
+    }
+  }
+
+  getClassificationSummary(): V2ClassificationSummary | null {
+    return this.classificationSummary;
   }
 
   clearModel() {

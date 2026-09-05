@@ -7,6 +7,7 @@ import V2Viewport, { type V2ViewportHandle } from "./V2Viewport";
 import { classifyDaeAssemblies, type V2Assembly } from "@/lib/studio-v2/dae-classify";
 import { V2_MATERIALS, V2_ZONE_LABELS, type V2MaterialZone } from "@/lib/studio-v2/materials";
 import type { V2MaterialSelections } from "@/lib/studio-v2/v2-viewer";
+import type { V2ClassificationSummary } from "@/lib/studio-v2/runtime-classify";
 
 type Stage = "upload" | "review" | "finishes" | "viewer";
 type Status =
@@ -28,6 +29,8 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
   const [selections, setSelections] = useState<V2MaterialSelections>({});
   const [highlightZone, setHighlightZone] = useState<V2MaterialZone | null>(null);
   const [presenting, setPresenting] = useState(false);
+  const [runtimeSummary, setRuntimeSummary] =
+    useState<V2ClassificationSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const xmlRef = useRef<string | null>(null);
   const viewerRef = useRef<V2ViewportHandle | null>(null);
@@ -234,6 +237,9 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
                 xml={daeXml}
                 assemblies={assemblies}
                 onLoaded={(result) => {
+                  if (result.classification) {
+                    setRuntimeSummary(result.classification);
+                  }
                   setStatus(
                     result.meshCount > 0 ? "Kitchen needs review" : "Kitchen ready",
                   );
@@ -268,6 +274,8 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
                   <div className="mt-4 space-y-4">
                     {(Object.keys(V2_ZONE_LABELS) as V2MaterialZone[]).map(
                       (zone) => {
+                        const runtimeCount =
+                          runtimeSummary?.zoneCounts?.[zone]?.meshes;
                         const zoneAssemblies = assemblies.filter(
                           (a) => a.proposedZone === zone,
                         );
@@ -293,7 +301,8 @@ export default function StudioV2Shell({ projectName }: { projectName: string }) 
                               </button>
                             </div>
                             <p className="mt-1 text-xs text-zinc-500">
-                              {zoneAssemblies.length} assemblies ·{" "}
+                              {runtimeCount ?? zoneAssemblies.length}{" "}
+                              {runtimeCount ? "meshes" : "assemblies"} ·{" "}
                               {selections[zone]
                                 ? V2_MATERIALS[zone].find(
                                     (m) => m.id === selections[zone],

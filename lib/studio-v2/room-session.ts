@@ -37,3 +37,14 @@ export function emptySession(): RoomSessionState {
     activePanelTab: "materials",
   };
 }
+
+export function nextActiveRoomAfterDelete(
+  roomIds: string[],
+  deletedId: string,
+  activeId: string,
+): string | null {
+  const remaining = roomIds.filter((id) => id !== deletedId);
+  if (remaining.length === 0) return null;
+  if (activeId === deletedId) return remaining[0];
+  return activeId;
+}

@@ -12,6 +12,9 @@ import {
 import type { EditableObjectInfo } from "./editable-objects";
 import type { ImportedModelSource } from "./imported-model-source";
 import { selectLoader } from "./loader-selection";
+import { applyColladaPatches } from "./collada-patches";
+
+applyColladaPatches();
 
 const DEBUG_IMPORT = process.env.NODE_ENV !== "production";
 
@@ -82,6 +85,39 @@ function floorAndCenter(root: THREE.Object3D): THREE.Group {
   return wrapper;
 }
 
+function ensureRenderableMaterials(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) {
+      return;
+    }
+
+    const fallback = () =>
+      new THREE.MeshStandardMaterial({
+        color: 0x9a948c,
+        roughness: 0.75,
+        metalness: 0,
+      });
+
+    if (Array.isArray(mesh.material)) {
+      const valid = mesh.material.filter(
+        (material): material is THREE.Material =>
+          Boolean(material) && "color" in material,
+      );
+      if (valid.length === 0) {
+        mesh.material = fallback();
+      } else if (valid.length !== mesh.material.length) {
+        mesh.material = valid;
+      }
+      return;
+    }
+
+    if (!mesh.material || !("color" in mesh.material)) {
+      mesh.material = fallback();
+    }
+  });
+}
+
 export function useImportedModel(source: ImportedModelSource | null): {
   scene: THREE.Group | null;
   sceneRef: { current: THREE.Group | null };
@@ -148,7 +184,9 @@ export function useImportedModel(source: ImportedModelSource | null): {
             mesh.receiveShadow = true;
           }
         });
-        return floorAndCenter(imported);
+        const prepared = floorAndCenter(imported);
+        ensureRenderableMaterials(prepared);
+        return prepared;
       }
 
       if (loaderSelection === "gltf") {

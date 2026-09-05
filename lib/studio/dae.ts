@@ -139,6 +139,22 @@ export function parseDaeUnit(text: string): {
   };
 }
 
+export function extractMissingTextureFiles(text: string): string[] {
+  const files = new Set<string>();
+  for (const match of text.matchAll(
+    /<init_from>\s*([^<\s]+)\s*<\/init_from>/g,
+  )) {
+    const value = match[1].replace(/^\.\//, "").replace(/\\/g, "/");
+    if (/\.(jpg|jpeg|png)$/i.test(value)) {
+      const basename = value.split("/").pop();
+      if (basename) {
+        files.add(basename);
+      }
+    }
+  }
+  return [...files].sort();
+}
+
 export function parseCutListCsv(text: string): CutListRow[] {
   const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
   if (lines.length === 0) {

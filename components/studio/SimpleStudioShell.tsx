@@ -23,6 +23,7 @@ interface SimpleStudioShellProps {
   } | null;
   daeUnit: string | null;
   daeUpAxis: string | null;
+  missingTextures: string[];
   groupProposals: { zone: MaterialZoneId; count: number }[];
   cutListCount: number;
   readyForDesign: boolean;
@@ -84,6 +85,7 @@ export default function SimpleStudioShell({
   daeDimensions,
   daeUnit,
   daeUpAxis,
+  missingTextures,
   groupProposals,
   cutListCount,
   readyForDesign,
@@ -490,6 +492,21 @@ export default function SimpleStudioShell({
                     ))}
                   </div>
                 </div>
+              ) : null}
+
+              {missingTextures.length > 0 ? (
+                <details className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <summary className="cursor-pointer font-medium">
+                    Design loaded with {missingTextures.length} missing texture
+                    {missingTextures.length === 1 ? "" : "s"}. Temporary colors
+                    are being shown.
+                  </summary>
+                  <ul className="mt-2 list-disc pl-5 text-xs">
+                    {missingTextures.map((file) => (
+                      <li key={file}>{file}</li>
+                    ))}
+                  </ul>
+                </details>
               ) : null}
 
               {daeError ? (

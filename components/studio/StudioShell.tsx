@@ -188,6 +188,7 @@ import {
   classifyDaeName,
   describeEncryptedXml,
   EMPTY_DAE_IMPORT,
+  extractMissingTextureFiles,
   isDaeReady,
   parseCutListCsv,
   parseDaeUnit,
@@ -3363,17 +3364,24 @@ export default function StudioShell({ projectName }: StudioShellProps) {
     let unit: string | null = null;
     let metersPerUnit: number | null = null;
     let upAxis: string | null = null;
+    let missingTextures: string[] = [];
     try {
       const text = await file.text();
       const parsed = parseDaeUnit(text);
       unit = parsed.unit;
       metersPerUnit = parsed.metersPerUnit;
       upAxis = parsed.upAxis;
+      missingTextures = extractMissingTextureFiles(text);
     } catch {
       // Metadata parsing is best-effort; geometry loading still proceeds.
     }
 
-    daeMark("metadata-parsed", { unit, metersPerUnit, upAxis });
+    daeMark("metadata-parsed", {
+      unit,
+      metersPerUnit,
+      upAxis,
+      missingTextures,
+    });
     const url = URL.createObjectURL(file);
     setDae((current) => ({
       ...current,
@@ -3392,8 +3400,10 @@ export default function StudioShell({ projectName }: StudioShellProps) {
         objectCount: null,
         meshCount: null,
         materialCount: null,
-        missingTextures: [],
-        warnings: [],
+        missingTextures,
+        warnings: missingTextures.length
+          ? [`${missingTextures.length} missing texture files`]
+          : [],
         groupProposals: [],
       },
     }));
@@ -3900,6 +3910,7 @@ export default function StudioShell({ projectName }: StudioShellProps) {
         daeDimensions={dae.metadata?.dimensions ?? null}
         daeUnit={dae.metadata?.unit ?? null}
         daeUpAxis={dae.metadata?.upAxis ?? null}
+        missingTextures={dae.metadata?.missingTextures ?? []}
         groupProposals={dae.metadata?.groupProposals ?? []}
         cutListCount={cutList.length}
         readyForDesign={isDaeReady(dae) && Boolean(descriptor)}

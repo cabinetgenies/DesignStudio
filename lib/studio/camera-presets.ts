@@ -1,4 +1,9 @@
-import type { BackgroundPreset, CameraView, StudioSettings } from "./types";
+import type {
+  BackgroundPreset,
+  CameraView,
+  StudioFocus,
+  StudioSettings,
+} from "./types";
 
 export interface CameraPreset {
   position: [number, number, number];
@@ -6,7 +11,7 @@ export interface CameraPreset {
   duration: number;
 }
 
-export const cameraPresets: Record<CameraView, CameraPreset> = {
+export const demoCameraPresets: Record<CameraView, CameraPreset> = {
   home: {
     position: [5.2, 3.4, 5.4],
     target: [0, 0.9, -0.4],
@@ -32,6 +37,11 @@ export const cameraPresets: Record<CameraView, CameraPreset> = {
     target: [0, 0, -0.4],
     duration: 1.2,
   },
+};
+
+export const demoFocus: StudioFocus = {
+  center: [0, 0.9, -0.4],
+  radius: 3.6,
 };
 
 export const backgroundColors: Record<BackgroundPreset, string> = {

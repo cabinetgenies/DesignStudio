@@ -1,29 +1,33 @@
+import { memo } from "react";
 import { demoMaterials, type DemoMaterialDef } from "@/lib/studio/demo-materials";
+import type { MaterialZoneId } from "@/lib/studio/material-zones";
 
 interface BoxProps {
+  name: string;
+  zone: MaterialZoneId;
+  editable?: boolean;
   size: [number, number, number];
   position: [number, number, number];
   material: DemoMaterialDef;
-  name?: string;
   castShadow?: boolean;
   receiveShadow?: boolean;
-  rotation?: [number, number, number];
 }
 
 function Box({
+  name,
+  zone,
+  editable = false,
   size,
   position,
   material,
-  name,
   castShadow = false,
   receiveShadow = false,
-  rotation,
 }: BoxProps) {
   return (
     <mesh
       name={name}
+      userData={{ zoneId: zone, appId: name, editable }}
       position={position}
-      rotation={rotation}
       castShadow={castShadow}
       receiveShadow={receiveShadow}
     >
@@ -37,82 +41,63 @@ function Box({
   );
 }
 
-export default function DemoKitchen() {
+function DemoKitchen() {
   return (
     <>
-      <group name="room">
-        <group name="walls">
-          <Box
-            size={[5.2, 2.7, 0.08]}
-            position={[0, 1.35, -2.6]}
-            material={demoMaterials.walls}
-            receiveShadow
-          />
-          <Box
-            size={[0.08, 2.7, 2.9]}
-            position={[-2.6, 1.35, -1.15]}
-            material={demoMaterials.walls}
-            receiveShadow
-          />
-        </group>
-        <group name="floor">
-          <mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-            <planeGeometry args={[10, 10]} />
-            <meshStandardMaterial
-              color={demoMaterials.floor.color}
-              roughness={demoMaterials.floor.roughness}
-              metalness={demoMaterials.floor.metalness}
-            />
-          </mesh>
-        </group>
-      </group>
-
       <group name="perimeter-cabinets">
         <Box
-          size={[1.9, 0.82, 0.58]}
-          position={[-1.45, 0.41, -2.31]}
+          name="perimeter-base-left"
+          zone="perimeter"
+          editable
+          size={[1.1, 0.82, 0.58]}
+          position={[-0.65, 0.41, -2.07]}
           material={demoMaterials.perimeter}
           castShadow
           receiveShadow
         />
         <Box
-          size={[1.3, 0.82, 0.58]}
-          position={[1.05, 0.41, -2.31]}
+          name="perimeter-base-right"
+          zone="perimeter"
+          editable
+          size={[1.1, 0.82, 0.58]}
+          position={[0.65, 0.41, -2.07]}
           material={demoMaterials.perimeter}
           castShadow
           receiveShadow
         />
         <Box
-          size={[0.7, 2.2, 0.7]}
-          position={[2.05, 1.1, -2.25]}
+          name="perimeter-tall"
+          zone="perimeter"
+          size={[0.5, 2.2, 0.6]}
+          position={[1.5, 1.1, -2.07]}
           material={demoMaterials.perimeter}
           castShadow
           receiveShadow
         />
         <Box
-          size={[0.58, 0.82, 2.0]}
-          position={[-2.31, 0.41, -1.4]}
+          name="perimeter-side-base"
+          zone="perimeter"
+          editable
+          size={[0.58, 0.82, 1.4]}
+          position={[-1.46, 0.41, -0.8]}
           material={demoMaterials.perimeter}
           castShadow
           receiveShadow
         />
         <Box
-          size={[1.9, 0.7, 0.34]}
-          position={[-1.45, 1.9, -2.43]}
+          name="perimeter-wall-left"
+          zone="perimeter"
+          size={[1.1, 0.7, 0.34]}
+          position={[-0.65, 1.9, -2.25]}
           material={demoMaterials.perimeter}
           castShadow
           receiveShadow
         />
         <Box
-          size={[1.3, 0.7, 0.34]}
-          position={[1.05, 1.9, -2.43]}
-          material={demoMaterials.perimeter}
-          castShadow
-          receiveShadow
-        />
-        <Box
-          size={[0.34, 0.7, 1.8]}
-          position={[-2.43, 1.9, -1.3]}
+          name="perimeter-wall-right"
+          zone="perimeter"
+          size={[1.1, 0.7, 0.34]}
+          position={[0.65, 1.9, -2.25]}
           material={demoMaterials.perimeter}
           castShadow
           receiveShadow
@@ -121,8 +106,11 @@ export default function DemoKitchen() {
 
       <group name="island-cabinets">
         <Box
-          size={[1.8, 0.82, 0.9]}
-          position={[0, 0.41, 0.9]}
+          name="island-base"
+          zone="island"
+          editable
+          size={[1.4, 0.82, 0.8]}
+          position={[0, 0.41, 0.45]}
           material={demoMaterials.island}
           castShadow
           receiveShadow
@@ -131,29 +119,37 @@ export default function DemoKitchen() {
 
       <group name="countertops">
         <Box
-          size={[1.95, 0.04, 0.64]}
-          position={[-1.475, 0.84, -2.28]}
+          name="counter-back-left"
+          zone="countertops"
+          size={[1.16, 0.04, 0.64]}
+          position={[-0.65, 0.84, -2.07]}
           material={demoMaterials.countertop}
           castShadow
           receiveShadow
         />
         <Box
-          size={[2.05, 0.04, 0.64]}
-          position={[1.425, 0.84, -2.28]}
+          name="counter-back-right"
+          zone="countertops"
+          size={[1.16, 0.04, 0.64]}
+          position={[0.65, 0.84, -2.07]}
           material={demoMaterials.countertop}
           castShadow
           receiveShadow
         />
         <Box
-          size={[0.64, 0.04, 2.1]}
-          position={[-2.28, 0.84, -1.4]}
+          name="counter-side"
+          zone="countertops"
+          size={[0.64, 0.04, 1.5]}
+          position={[-1.46, 0.84, -0.8]}
           material={demoMaterials.countertop}
           castShadow
           receiveShadow
         />
         <Box
-          size={[1.9, 0.04, 1.0]}
-          position={[0, 0.84, 0.9]}
+          name="counter-island"
+          zone="countertops"
+          size={[1.5, 0.04, 0.9]}
+          position={[0, 0.84, 0.45]}
           material={demoMaterials.countertop}
           castShadow
           receiveShadow
@@ -162,14 +158,18 @@ export default function DemoKitchen() {
 
       <group name="appliances">
         <Box
-          size={[0.9, 0.84, 0.58]}
-          position={[0, 0.42, -2.31]}
+          name="appliance-range"
+          zone="appliances"
+          size={[0.7, 0.84, 0.58]}
+          position={[0, 0.42, -2.07]}
           material={demoMaterials.appliance}
           castShadow
         />
         <Box
-          size={[0.95, 0.28, 0.45]}
-          position={[0, 1.95, -2.36]}
+          name="appliance-hood"
+          zone="appliances"
+          size={[0.8, 0.28, 0.45]}
+          position={[0, 1.95, -2.12]}
           material={demoMaterials.appliance}
           castShadow
         />
@@ -177,36 +177,50 @@ export default function DemoKitchen() {
 
       <group name="hardware">
         <Box
+          name="hardware-1"
+          zone="hardware"
           size={[0.03, 0.2, 0.02]}
-          position={[-1.45, 0.52, -2.01]}
+          position={[-0.65, 0.52, -1.77]}
           material={demoMaterials.hardware}
         />
         <Box
+          name="hardware-2"
+          zone="hardware"
           size={[0.03, 0.2, 0.02]}
-          position={[1.05, 0.52, -2.01]}
+          position={[0.65, 0.52, -1.77]}
           material={demoMaterials.hardware}
         />
         <Box
+          name="hardware-3"
+          zone="hardware"
           size={[0.02, 0.2, 0.03]}
-          position={[-2.01, 0.52, -1.0]}
+          position={[-1.16, 0.52, -0.8]}
           material={demoMaterials.hardware}
         />
         <Box
+          name="hardware-4"
+          zone="hardware"
           size={[0.03, 0.18, 0.02]}
-          position={[-1.45, 1.9, -2.25]}
+          position={[-0.65, 1.9, -2.08]}
           material={demoMaterials.hardware}
         />
         <Box
+          name="hardware-5"
+          zone="hardware"
           size={[0.03, 0.18, 0.02]}
-          position={[1.05, 1.9, -2.25]}
+          position={[0.65, 1.9, -2.08]}
           material={demoMaterials.hardware}
         />
         <Box
+          name="hardware-6"
+          zone="hardware"
           size={[0.03, 0.2, 0.02]}
-          position={[0, 0.52, 1.36]}
+          position={[0, 0.52, 0.86]}
           material={demoMaterials.hardware}
         />
       </group>
     </>
   );
 }
+
+export default memo(DemoKitchen);

@@ -2,29 +2,67 @@
 
 import Link from "next/link";
 import { ArrowLeftIcon, PresentationIcon } from "@/components/icons";
-import type { CameraView } from "@/lib/studio/types";
+import type { ViewMode } from "@/lib/studio/transforms";
 
 interface StudioToolbarProps {
   projectName: string;
   presenting: boolean;
-  activeView: CameraView;
-  onViewChange: (view: CameraView) => void;
+  viewMode: ViewMode;
+  transformMode: "translate" | "rotate" | null;
+  workspace: "3d" | "plan";
+  onWorkspaceChange: (workspace: "3d" | "plan") => void;
+  onTransformModeChange: (mode: "translate" | "rotate" | null) => void;
+  onViewModeChange: (view: ViewMode) => void;
+  onFrameSelection: () => void;
+  onFrameRoom: () => void;
   onTogglePresentation: () => void;
 }
 
-const views: { key: CameraView; label: string }[] = [
-  { key: "home", label: "Home View" },
+const views: { key: ViewMode; label: string }[] = [
+  { key: "perspective", label: "Perspective" },
+  { key: "plan", label: "Plan" },
   { key: "front", label: "Front" },
   { key: "left", label: "Left" },
   { key: "right", label: "Right" },
-  { key: "top", label: "Top" },
 ];
+
+function ToolButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-pressed={active}
+      onClick={onClick}
+      className={`inline-flex h-8 shrink-0 items-center rounded-md border px-2.5 text-sm font-medium transition-colors ${
+        active
+          ? "border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-800"
+          : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
 
 export default function StudioToolbar({
   projectName,
   presenting,
-  activeView,
-  onViewChange,
+  viewMode,
+  transformMode,
+  workspace,
+  onWorkspaceChange,
+  onTransformModeChange,
+  onViewModeChange,
+  onFrameSelection,
+  onFrameRoom,
   onTogglePresentation,
 }: StudioToolbarProps) {
   if (presenting) {
@@ -73,35 +111,58 @@ export default function StudioToolbar({
 
       <div className="flex items-center gap-1 overflow-x-auto border-t border-zinc-100 px-3 py-2 sm:px-4">
         <span className="mr-1 shrink-0 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+          Workspace
+        </span>
+        <ToolButton
+          label="3D"
+          active={workspace === "3d"}
+          onClick={() => onWorkspaceChange("3d")}
+        />
+        <ToolButton
+          label="Plan"
+          active={workspace === "plan"}
+          onClick={() => onWorkspaceChange("plan")}
+        />
+
+        <span className="mx-2 h-5 w-px shrink-0 bg-zinc-200" />
+        <span className="mr-1 shrink-0 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+          Transform
+        </span>
+        <ToolButton
+          label="Move"
+          active={transformMode === "translate"}
+          onClick={() =>
+            onTransformModeChange(
+              transformMode === "translate" ? null : "translate",
+            )
+          }
+        />
+        <ToolButton
+          label="Rotate"
+          active={transformMode === "rotate"}
+          onClick={() =>
+            onTransformModeChange(
+              transformMode === "rotate" ? null : "rotate",
+            )
+          }
+        />
+
+        <span className="mx-2 h-5 w-px shrink-0 bg-zinc-200" />
+        <span className="shrink-0 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
           View
         </span>
-        {views.map((view) => {
-          const active = activeView === view.key;
-          return (
-            <button
-              key={view.key}
-              type="button"
-              title={view.label}
-              onClick={() => onViewChange(view.key)}
-              aria-pressed={active}
-              className={`inline-flex h-8 shrink-0 items-center rounded-md border px-2.5 text-sm font-medium transition-colors ${
-                active
-                  ? "border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-800"
-                  : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              }`}
-            >
-              {view.label}
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          title="Reset camera"
-          onClick={() => onViewChange("home")}
-          className="inline-flex h-8 shrink-0 items-center rounded-md border border-zinc-200 bg-white px-2.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
-        >
-          Reset
-        </button>
+        {views.map((view) => (
+          <ToolButton
+            key={view.key}
+            label={view.label}
+            active={viewMode === view.key}
+            onClick={() => onViewModeChange(view.key)}
+          />
+        ))}
+
+        <span className="mx-2 h-5 w-px shrink-0 bg-zinc-200" />
+        <ToolButton label="Frame Selection" onClick={onFrameSelection} />
+        <ToolButton label="Frame Room" onClick={onFrameRoom} />
       </div>
     </header>
   );
